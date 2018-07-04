@@ -1,0 +1,65 @@
+
+
+本文通过多个操作示例，逐步向读者展示如何将自己喜欢的功能添加到鼠标右键菜单中。
+修改注册表，实现右键在当前位置打开cmd
+
+win+R—->regedit进入注册表编辑器
+
+    文件夹folder右键菜单
+    位置：\HKEY_CLASSES_ROOT\Folder\shell
+    操作：新增项xxxcmd（将其默认值改为自己喜欢的，如“命令提示符打开cmd_”），然后在其下新增command子项，子项的值即为打开cmd的命令：cmd.exe /k cd %1
+    explorer文件浏览窗体内部空白处右键菜单
+    位置：\HKEY_CLASSES_ROOT\Directory\Background\shell
+    操作：同上，command命令的值设为：cmd.exe /s /k pushd “%V”
+    右键菜单项增加Icon看起来显得更加专业和友好，方法是给xxxcmd项增加字符串值，名称为Icon，值为C:\Windows\System32\cmd.exe,0
+
+以上三步，大功告成，在任意位置打开cmd就很愉快了o(￣︶￣)o
+右键选择“用SublimeText3打开”
+
+我个人还喜欢将Sublime Text3添加到文件的右键菜单中。同样的做法，注册表建的位置：
+\HKEY_CLASSES_ROOT*\shell
+新增Edit with Sublime Text3子项，给该项增加字符串值：
+名称：Icon
+值：D:\env\editor\SublimeText3\sublime_text.exe,0
+然后给Edit with Sublime Text3添加command子项，值为：
+D:\env\editor\SublimeText3\sublime_text.exe %1
+注册自定义的文件类型，关联ico图标，关联双击打开的程序（以.fag为例）
+
+    \HKEY_CLASSES_ROOT下新增子项.fag，其默认值可改为”fagfile”
+    \HKEY_CLASSES_ROOT下新增子项fagfile。
+    在fagfile下新增子项DefaultIcon，默认值为ico图标所在位置D:\test\favicon.ico
+    在fagfile下新增子项shell，shell下新增子项open，open下新增子项command
+    设置command的默认值为双击打开程序的位置，如E:\software\Notepad++\notepad++.exe %1
+
+右键关联执行自定义java程序
+
+一方面是很长时间不写C/C++了，另一方面，有很多的工具包/类都有现成的Java实现，因此想到了将一些Java工具关联到鼠标右键菜单中以快速呼出。因为不是exe，所以需要借助bat批处理脚本。
+以在当前目录下创建一个foo.dir子文件夹为例，步骤如下：
+
+    编写Java代码，编译成可执行的单个class文件，或者可执行的Jar包。
+
+//D:/liny/dev/test/TestMkdir.java
+public class TestMkdir {
+    public static void main(String[] args) {
+        if(args.length > 0) {
+            File file = new File(args[0] + "/foo.dir");
+            if(!file.exists()) {
+                file.mkdirs();
+            }
+        }
+    }
+}
+
+  
+
+    编写.bat脚本，调用Java：
+
+@echo off
+java -classpath D:/liny/dev/test/ TestMkdir %1
+@pause
+
+
+    最后在\HKEY_CLASSES_ROOT\Directory\Background\shell下面新增子项，xxxjavacmd，其默认值改为”创建foo.dir(测试)”，在下新增command子项，其值设置为D:\liny\dev\test\TestMkdir.bat “%V”
+    注意当前右键点击目的路径是通过%V – %1 – args[0]这样一步步传进java程序的。
+
+
