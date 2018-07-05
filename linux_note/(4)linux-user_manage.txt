@@ -1,0 +1,102 @@
+r w x     u g o a
+
+1.chown
+
+chown Username file1,file2,...
+
+　　-R   operate on files and directories recursively
+　　--reference=rfile  file       将rfile的属主给file
+
+chown username:groupname file
+
+2.chgrp Gname file
+
+　　-R
+
+3.chmod
+
+chmod 777 file
+
+-R
+
+chmod u=rw,g=rx file
+
+chmod u-x,g+x file
+
+useradd -km /home/openstack openstack
+
+chown -R openstack:openstack /home/openstack
+
+chmod -R go= /home/openstack
+
+ 
+
+4.手动用户创建
+
+用到3个目录/etc/passwd /etc/group /etc/shadow  相当于（useradd -M user）
+
+cp -r /etc/skel /home/user
+
+chown -R user:user /home/user
+
+chmod -R go= /home/user
+
+ 
+
+5.umask  遮罩码  root 0022    普通用户0002
+
+666文件
+
+777目录
+
+666-umask
+
+777-umask
+
+ 
+
+6.从用户登录角度看shell
+
+登录式shell
+
+su - username
+
+某终端登录
+
+ 
+
+非登录式shell
+
+su username
+
+图形终端打开命令行
+
+shell脚本执行
+
+ 
+
+bash配置
+
+全局配置
+
+/etc/profile  /etc/profile.d/*.sh  /etc/bashrc
+
+个人配置
+
+~/.bashrc    ~/.bash_profile
+
+ 
+
+profile类文件：设定环境变量，运行命令或脚本
+
+bashrc类文件：设定本地变量，定义别名
+
+ 
+
+登录式shell如何读取
+
+/etc/profile-->/etc/profile.d/*.sh->~/.bashrc_profile-->~/.bashrc-->/etc/bashrc
+
+非登录式shell如何读取
+
+~/.bashrc-->/ect/bashrc -->/etc/profile.d/*.sh

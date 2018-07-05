@@ -1,0 +1,27 @@
+1、Standard commands （标准命令）
+2、System calls （系统调用）
+3、Library functions （库函数）
+4、Special devices （设备说明）
+5、File formats （文件格式）
+6、Games and toys （游戏和娱乐）
+7、Miscellaneous （杂项）
+8、Administrative Commands （管理员命令）
+9 其他（Linux特定的）， 用来存放内核例行程序的文档。
+n 新文档， 可能要移到更适合的领域。
+o 老文档， 可能会在一段期限内保留。
+l 本地文档， 与本特定系统有关的。
+
+ 
+
+或者man man查看
+
+       1   Executable programs or shell commands
+       2   System calls (functions provided by the kernel)
+       3   Library calls (functions within program libraries)
+       4   Special files (usually found in /dev)
+       5   File formats and conventions eg /etc/passwd
+       6   Games
+       7   Miscellaneous  (including  macro  packages  and  conventions), e.g.
+           man(7), groff(7)
+       8   System administration commands (usually only for root)
+       9   Kernel routines [Non standard]

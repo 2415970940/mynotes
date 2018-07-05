@@ -1,0 +1,140 @@
+1、useradd
+复制代码
+
+[lunarji@localhost ~]$ ls /etc/default/
+grub  nss  useradd
+[lunarji@localhost ~]$ cat /etc/default/useradd 
+# useradd defaults file
+GROUP=100
+HOME=/home
+INACTIVE=-1
+EXPIRE=
+SHELL=/bin/bash
+SKEL=/etc/skel
+CREATE_MAIL_SPOOL=yes
+
+复制代码
+
+1）新用户添加到GID为100的公共组
+2）新用户的HOME目录将会位于/homoe/username
+3）新用户账户密码在过期后不会被禁用
+4）新用户账户未被设置为某个日期后就过期
+5）新用户账户将bash shell作为默认shell
+6）系统会将/etc/skel目录下的内容复制到用户的HOME目录下
+7）系统为该用户账户在mail目录下创建一个用于接收邮件的文件
+
+useradd [option] USERNAME
+
+　　-u UID
+
+　　-g GID
+
+　　-G GID附加组
+
+　　-d 指定目录，如/home ,The new user will be created using HOME_DIR as the value for the
+           user's login directory.
+
+　　-s 指定shell   /bin/bash
+
+　　-M, --no-create-home
+           Do not create the user's home directory, even if the system wide
+           setting from /etc/login.defs (CREATE_HOME) is set to yes.
+
+　　-m, --create-home
+           Create the user's home directory if it does not exist. The files
+           and directories contained in the skeleton directory (which can be
+           defined with the -k option) will be copied to the home directory.
+
+　　ls -a /etc/skel
+2.userdel
+
+userdel [option] username
+
+　　-r delete /home/xxx
+
+3.id
+复制代码
+
+[lunarji@localhost ~]$ id
+uid=1000(lunarji) gid=1000(lunarji) groups=1000(lunarji),10(wheel) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+[lunarji@localhost ~]$ id lunarji
+uid=1000(lunarji) gid=1000(lunarji) groups=1000(lunarji),10(wheel)
+[lunarji@localhost ~]$ id -g lunarji
+1000
+
+复制代码
+
+-n 显示名字
+
+4.finger
+
+finger — user information lookup program
+
+复制代码
+
+[lunarji@localhost ~]$ finger lunarji
+Login: lunarji                    Name: lunarji
+Directory: /home/lunarji                Shell: /bin/bash
+On since Tue Jul  3 12:02 (CST) on :0 from :0 (messages off)
+On since Tue Jul  3 12:10 (CST) on pts/0 from :0
+   7 seconds idle
+No mail.
+No Plan.
+
+复制代码
+
+5.modify user
+
+usermod
+
+　　-u　change UID
+
+　　eg. usermod -u 3000 username
+
+　　-g 　GID
+
+　　-G   override        -a  追加附加组
+
+　　-d, --home HOME_DIR     -m the contents of the current home directory will be moved to the new home directory
+           The user's new login directory.
+
+　　-l The name of the user will be changed from LOGIN to NEW_LOGIN.
+
+　　-L lock user
+
+　　-U unlock
+
+6.chsh
+
+change shell
+
+7.chfn      change finger
+
+8.passwd
+
+　　--stdin
+
+　　eg. echo "redhat" | passwd --stdin username
+
+　　-l lock
+
+　　-u unlock
+
+9.pwck
+
+pwck - verify integrity of password files
+10.groupadd
+
+　　-r  添加系统组ID在500内
+
+groudmod
+
+grouddel
+
+gpasswd   passwd  groupname
+
+newgrp    login a new group 切换基本组
+
+11 chage
+
+       chage - change user password expiry information

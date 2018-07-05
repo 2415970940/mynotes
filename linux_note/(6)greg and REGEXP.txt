@@ -1,0 +1,111 @@
+ grep及正则
+
+1.查找需求
+
+grep 根据模式搜索文本
+
+pattern，文本字符和正则表达式的元字符组合而成的匹配模式
+
+grep  [OPTIONS]   PATTERN   [FILE...]
+eg.
+
+[lunarji@localhost ~]$ grep 'root' /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+operator:x:11:0:operator:/root:/sbin/nologin
+
+　　-i   --ignore-case
+　　--color  查找内容显示颜色
+
+　　-v 反向查找
+
+　　-o 　　只显示被模式匹配的字符串
+
+?单个字符         注意与正则不一样
+
+*任意长度的任意字符
+
+2.正则表达式  默认贪婪模式 ，匹配最多项
+
+元字符
+
+. 单个字符
+
+[] 任意范围内的字符
+
+[^]任意范围外的字符
+
+字符集 [:digit:]  [:lower:] [:punct:] [:alnum:] [:alpha:][:space:]
+
+eg
+
+[lunarji@localhost ~]$ grep '[[:digit:]]$' /etc/passwd
+
+ 
+
+ 
+
+匹配次数：
+
+* 前一个字符的任意次
+
+.* 任意长度的任意字符
+
+？前面字符一次或零次    注意需要转义处理  \?
+
+\{m,n\} 前面字符至少m次，至多n次
+
+ 
+
+位置定位
+
+^ 行首定义
+
+[lunarji@localhost ~]$ grep  '^root' /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+
+$行尾
+
+^$ 空白行
+
+ 
+
+\< 或 \b 其后任意字符在单词前部出现    词首
+
+\>  或 \b其前任意字符在单词后部出现    词尾
+
+\<root\>
+
+ 
+
+分组
+
+\(\)
+
+eg. \(ab\)*
+
+ 
+
+向后引用
+
+test
+
+he love his lover
+she like her lover
+he like his liker
+she love her liker
+
+复制代码
+
+[lunarji@localhost ~]$ grep 'l..e' test
+he love his lover
+she like her lover
+he like his liker
+she love her liker
+[lunarji@localhost ~]$ grep 'l..e.*l..e' test
+he love his lover
+she like her lover
+he like his liker
+she love her liker
+[lunarji@localhost ~]$ grep '\(l..e\).*\1' test
+he love his lover
+he like his liker

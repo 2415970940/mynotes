@@ -1,0 +1,175 @@
+ IO重定向
+
+1.
+
+控制总线  控制指令
+
+地址总线   内存寻址
+
+数据总线   传数据
+
+寄存器   cpu暂时储存
+
+I/O
+
+INPUT设备
+
+OUTPUT设备
+
+ 
+
+系统设定：
+
+　　默认输入设备，即标准输入，STDIN，0
+
+　　默认输出设备，即标准输出，STDOUT，1
+
+　　标准错误输出， STDEER，2
+
+标准输入：键盘
+
+标准输出和标准错误输出：显示器
+
+2.
+
+I/O重定向：改变标准输入和输出，标准错误输出
+
+>输出重定向  覆盖输出
+
+>>  追加输出          注释  set  -C  不能覆盖  但是 >|  照样可以覆盖输出
+
+<输入重定向
+
+2>  错误输出重定向
+
+2>> 追加
+
+ls  /var  >/tmp/var.out  2>/tmp/err.out      两种输出一起使用
+
+ls  /var &>/tmp/var.out
+
+&>  标准输出或标准错误输出至同一个文件
+
+&>> 不支持
+
+ 
+
+<输入重定向
+
+<< here document
+复制代码
+
+[lunarji@localhost ~]$ cat<<EOF
+> the first line
+> the second line
+> eof
+> EOF
+the first line
+the second line
+eof
+[lunarji@localhost ~]$ cat>>/tmp/my.txt<<eof
+> the first line
+> the second ling
+> eof
+[lunarji@localhost ~]$ cat /tmp/my.txt 
+the first line
+the second ling
+
+复制代码
+
+3.管道 |
+
+前一个命令的输出，是下个命令的输入
+
+linux哲学思想，组合小命令完成复杂任务
+
+tee
+
+tee - read from standard input and write to standard output and files
+
+[lunarji@localhost ~]$ echo 'hello,world'|tee /tmp/my.txt
+hello,world
+[lunarji@localhost ~]$ cat /tmp/my.txt 
+hello,world
+
+只显示行数
+
+[lunarji@localhost ~]$ wc -l /etc/passwd
+43 /etc/passwd
+[lunarji@localhost ~]$ wc -l /etc/passwd|cut -d' ' -f1
+43
+
+4.练习
+
+a.统计/usr/bin文件数目
+复制代码
+
+[lunarji@localhost ~]$ ls /usr/bin|wc -l
+1800
+[lunarji@localhost ~]$ ls -l /usr/bin|wc -l
+1801
+[lunarji@localhost ~]$ ls -l /usr/bin|head -2
+total 174528
+-rwxr-xr-x.   1 root root      41480 Apr 11 12:35 [
+
+复制代码
+
+b.取出当前用户的所有shell，只显示一次，并按顺序显示
+
+[lunarji@localhost ~]$ cut -d: -f7 /etc/passwd|sort -u 
+/bin/bash
+/bin/sync
+/sbin/halt
+/sbin/nologin
+/sbin/shutdown
+
+深化：对用户shell排序
+
+[lunarji@localhost ~]$ cut -d: -f7 /etc/passwd|sort|uniq -c|sort -rnk 1
+     38 /sbin/nologin
+      2 /bin/bash
+      1 /sbin/shutdown
+      1 /sbin/halt
+      1 /bin/sync
+
+c.显示/var/log下的文件类型
+复制代码
+
+[lunarji@localhost ~]$ cd /var/log
+[lunarji@localhost log]$ file `ls /var/log`
+anaconda:               directory
+audit:                  directory
+boot.log:               empty
+boot.log-20180620:      regular file, no read permission
+boot.log-20180623:      regular file, no read permission
+boot.log-20180626:      regular file, no read permission
+
+复制代码
+
+要在当前目录下，还有非当前目录file `ls /var/log`，ls /var/log|file  都是错的
+
+d.取出/etc/inittab的第六行内容
+
+ 
+
+[lunarji@localhost log]$ head -6 /etc/inittab|tail -1
+#
+
+ 
+
+e.取出/etc/passwd倒数第九个用户和shell，显示屏幕并保持在/tmp/user.txt
+
+[lunarji@localhost log]$ tail -9 /etc/passwd|head -1|cut -d: -f1,7|tee /tmp/user.txt
+ntp:/sbin/nologin
+
+f.取出/etc下以pa开头的文件，并统计个数
+
+ 
+
+[lunarji@localhost log]$ ls -d  /etc/pa*|wc -l
+3
+
+g.不使用文本编辑器，将alias cls=clear 添加到当前用户的/.bashrc中
+
+echo "alias cls=clear" >> /.bashrc
+

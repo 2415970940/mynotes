@@ -8,8 +8,8 @@
     使用命令git commit -m <message>，完成。
 
 3.要随时掌握工作区的状态，使用git status命令。
-				工作区			暂缓区
-untracked   unmodified    		modified   	 		staged
+			工作区			   暂缓区
+untracked   unmodified    	   modified   	 		staged
 			git add .		 git commit -m ""
 			git diff		git diff --cached
 							git reset HEAD <file>
