@@ -1,1 +1,97 @@
-bash
+shell programming
+1.静态语言  C,C++,JAVA,C#
+  动态语言	PHP,SHELL,PYTHON
+2.变量
+本地变量 varname=value  整个bash进程
+局部变量 local varname=value  当前代码段
+环境变量 export varname=value 当前shell及其子进程
+引用变量 ${varname}
+位置变量 $1,$2
+特殊变量 $?上一个命令执行状态返回值
+一个程序有两个返回值，执行结果和执行状态结果（0，正确；1-255，错误执行）
+
+撤销变量 unset varname
+查看当前shell变量 set
+查看当前shell环境变量  printenv  ; env  ; export
+
+
+脚本在执行中会启动一个子shell进程
+命令行中期待的脚本会继承当前shell环境变量
+系统自动执行的脚本（非命令行启动），需自我定义环境变量
+
+/dev/null 软件设备 bit bucket
+
+写个脚本
+（1）添加5个用户，user1,...,user5.每个用户密码和用户名相同，在passwd命令中不显示
+
+3.条件判断
+整数比较
+-eq  =
+-en	!=
+-lt  <
+-gt	 >
+-le  <=
+-ge  >=
+若用户不存在，添加并给密码，否则显示已存在
+! id user1 &> /dev/null && useradd user1 && echo "user1"|passwd --stdin user1 || echo "user1 exist."
+UID=0是管理员，否则普通用户
+#!/usr/bin/bash
+
+NAME=user1
+USERID=`id -u $NAME`
+[ $USERID -eq 0 ] && echo "superroot" || echo "general user"
+
+
+./usersu.sh: line 3: NAME: command not found
+错误原因  NAME = user1
+正确写法  NAME=user1
+
+if[$STR1=$STR2](错误写法)
+
+if [ $STR1 = $STR2 ](正确写法)
+
+if 
+then
+	echo
+else
+	echo
+fi
+
+练习
+1.有多少用户默认为bash，并显示其中一个用户
+#!/usr/bin/bash
+#
+if grep "bash$" /etc/passwd
+then
+  NUM=`grep "bash$" /etc/passwd | wc -l`
+  USER=`grep "bash$" /etc/passwd | head -1 |cut -d: -f1`
+  echo "$NUM users use bash"
+  echo "$USER"
+fi
+
+2./etc/inittab中是否有空白行，有显示行数，无输出结果
+#!/usr/bin/bash
+#
+if grep "#^$" /etc/inittab
+then
+  NUM=`grep "^$" /etc/inittab | wc -l`
+  echo "the blank is $NUM"
+else
+  echo "no blank"
+fi
+3.history命令总条目是否大于1000，是“some command will gone”
+
+
+
+算术运算
+A=2
+B=3
+C=?
+1. let C=$A+$B
+2. C = $[$A+$B]
+3. C = $(($A+$B))
+4.expr      C=`expr $A + $B`
+
+
+
+
