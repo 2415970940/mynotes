@@ -1,0 +1,23 @@
+1.正则表达式
+			Basic REGEXP      Exrend REGEXP
+基本表达式	  .						.		
+			[][^]					[][^]
+匹配次数	*						*
+			\?						?
+			\{m,n\}					{m,n}
+									+（最少一次）
+锚定		^						^
+			$						$	
+			\> \b					\> \b
+			\< \b					\< \b
+分组		\(\)					()
+									|(或者)
+eg. egrep 	'C|cat'  test
+
+是C和cat匹配不是Cat和cat
+									
+gre -E   = egrep
+    -A n  	显示匹配字符的行和后面的n行
+	-B n	显示匹配字符的行和前面的n行
+	-C n	显示匹配字符的行和前后面的n行
+	
