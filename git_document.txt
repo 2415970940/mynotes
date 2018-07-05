@@ -1,7 +1,42 @@
 1.git setup
-$ git config --global user.name "Your Name"
-$ git config --global user.email "email@example.com"
+	$ git config --global user.name "Your Name"
+	$ git config --global user.email "email@example.com"
+	
 2.通过git init命令把这个目录变成Git可以管理的仓库
     添加文件到Git仓库，分两步：
     使用命令git add <file>，注意，可反复多次使用，添加多个文件；
     使用命令git commit -m <message>，完成。
+
+3.要随时掌握工作区的状态，使用git status命令。
+untracked   unmodified    		modified   	 		staged
+			git add .		 git commit -m ""
+			git diff		git diff --cached
+
+4.git log 可以查看提交历史，以便确定要回退到哪个版本
+eg.
+$ git log
+commit 5a484fb7ec970d5292bfa040fddce5610bfd26e0 (HEAD -> master, origin/master, origin/HEAD)
+Author: lunarji <2415970940@qq.com>
+Date:   Thu Jul 5 09:43:42 2018 +0800
+
+    add git_document
+
+commit 0f285749649b7e2879e0197e5e11080a539d49cd
+Author: 2415970940 <2415970940@QQ.COM>
+Date:   Thu Jul 5 09:32:14 2018 +0800
+
+    Delete readme.txt
+
+commit 530feb89710d20597fcdb710ed2079652a6a9eb4
+Author: lunarji <2415970940@qq.com>
+Date:   Thu Jul 5 01:27:38 2018 +0800
+
+HEAD指向的版本就是当前版本，因此，Git允许我们在版本的历史之间穿梭，
+使用命令git reset --hard commit_id
+commit_id 是HEAD^ (上个版本)或者HEAD^^(上上个版本)或者530feb89（类似）
+
+要重返未来，用git reflog查看命令历史，以便确定要回到未来的哪个版本
+
+git reflog和git log区别
+git log 以往历史
+git reflog 删除未来的历史
