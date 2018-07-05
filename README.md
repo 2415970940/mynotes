@@ -1,2 +1,2 @@
 # mynotes
-note
+study git , linux to write knowledge points
