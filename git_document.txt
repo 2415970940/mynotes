@@ -1,0 +1,7 @@
+1.git setup
+$ git config --global user.name "Your Name"
+$ git config --global user.email "email@example.com"
+2.通过git init命令把这个目录变成Git可以管理的仓库
+    添加文件到Git仓库，分两步：
+    使用命令git add <file>，注意，可反复多次使用，添加多个文件；
+    使用命令git commit -m <message>，完成。
