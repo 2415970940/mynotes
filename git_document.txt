@@ -8,9 +8,11 @@
     使用命令git commit -m <message>，完成。
 
 3.要随时掌握工作区的状态，使用git status命令。
+				工作区			暂缓区
 untracked   unmodified    		modified   	 		staged
 			git add .		 git commit -m ""
 			git diff		git diff --cached
+							git reset HEAD <file>
 
 4.git log 可以查看提交历史，以便确定要回退到哪个版本
 eg.
@@ -33,10 +35,35 @@ Date:   Thu Jul 5 01:27:38 2018 +0800
 
 HEAD指向的版本就是当前版本，因此，Git允许我们在版本的历史之间穿梭，
 使用命令git reset --hard commit_id
-commit_id 是HEAD^ (上个版本)或者HEAD^^(上上个版本)或者530feb89（类似）
+commit_id 是HEAD^ (上个版本HEAD~1)或者HEAD^^(上上个版本HEAD~2)或者530feb89（类似）
 
 要重返未来，用git reflog查看命令历史，以便确定要回到未来的哪个版本
 
 git reflog和git log区别
 git log 以往历史
 git reflog 删除未来的历史
+
+用git diff HEAD -- readme.txt命令可以查看工作区和版本库里面最新版本的区别
+
+5. git checkout -- readme.txt就是让这个文件回到最近一次git commit或git add时的状态。
+git add用命令git reset HEAD <file>可以把暂存区的修改撤销掉，即取消git add命令操作
+
+从git add 退回到 staged
+git reset HEAD <file>
+git checkout -- <file>
+
+6.删除文件
+git rm <file>
+git commit -m "del<file>"
+恢复
+git checkout -- <file>
+
+7.远程仓库
+在github上建立一个repository名为mynotes
+在目录下git clone https://github.com/2415970940/mynotes.git
+cd mynotes
+本地和远程仓库通过git push和git pull同步
+
+8.分支管理
+
+
