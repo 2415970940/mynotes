@@ -7,8 +7,13 @@ shell programming
 环境变量 export varname=value 当前shell及其子进程
 引用变量 ${varname}
 位置变量 $1,$2
+		shift [n]  切换$1,$2,$3,$4
+
 特殊变量 $?上一个命令执行状态返回值
 一个程序有两个返回值，执行结果和执行状态结果（0，正确；1-255，错误执行）
+$# 给出参数个数
+$* 参数列表
+$@ 参数列表
 
 撤销变量 unset varname
 查看当前shell变量 set
@@ -57,29 +62,39 @@ else
 	echo
 fi
 
-练习
-1.有多少用户默认为bash，并显示其中一个用户
-#!/usr/bin/bash
-#
-if grep "bash$" /etc/passwd
+if ...
+  then
+elif ...
 then
-  NUM=`grep "bash$" /etc/passwd | wc -l`
-  USER=`grep "bash$" /etc/passwd | head -1 |cut -d: -f1`
-  echo "$NUM users use bash"
-  echo "$USER"
+elif ...
+then
+else ...
 fi
 
-2./etc/inittab中是否有空白行，有显示行数，无输出结果
-#!/usr/bin/bash
-#
-if grep "#^$" /etc/inittab
-then
-  NUM=`grep "^$" /etc/inittab | wc -l`
-  echo "the blank is $NUM"
-else
-  echo "no blank"
-fi
-3.history命令总条目是否大于1000，是“some command will gone”
+			练习
+			1.有多少用户默认为bash，并显示其中一个用户
+			#!/usr/bin/bash
+			#
+			if grep "bash$" /etc/passwd
+			then
+			  NUM=`grep "bash$" /etc/passwd | wc -l`
+			  USER=`grep "bash$" /etc/passwd | head -1 |cut -d: -f1`
+			  echo "$NUM users use bash"
+			  echo "$USER"
+			fi
+
+			2./etc/inittab中是否有空白行，有显示行数，无输出结果
+			#!/usr/bin/bash
+			#
+			if grep "#^$" /etc/inittab
+			then
+			  NUM=`grep "^$" /etc/inittab | wc -l`
+			  echo "the blank is $NUM"
+			else
+			  echo "no blank"
+			fi
+			3.history命令总条目是否大于1000，是“some command will gone”
+			history | tail -1 | cut -d' ' -f2
 
 
 
@@ -91,6 +106,62 @@ C=?
 2. C = $[$A+$B]
 3. C = $(($A+$B))
 4.expr      C=`expr $A + $B`
+
+定义退出状态码
+exit 0-255 提前退出
+显示echo $?
+显示0 正常退出
+
+4.文件测试
+-e FILE: 是否存在
+-f FILE: 是否为普通文件
+-d FILE: 是否目录
+-r       读
+-w		 写	
+-x		 执行
+
+[ ! -e /etc/inittab ]
+
+bash -n [file]  测试脚本文件语法
+bash -x [file]  单步赋值
+
+练习 若文件是普通文件显示，若是目录显示，否则无法识别
+#!/usr/bin/bash
+#
+FILE=/etc/inittabf
+
+if [ ! -e $FILE ];then
+  echo "$FILE no exist."
+  exit 6
+fi
+
+if [ -f $FILE ];then
+  echo "$FILE is common file."
+elif [ -d $FILE ];then
+  echo "$FILE is directory."
+else
+  echo "unknown"
+fi
+
+练习，给脚本传递两个整数，显示之和，之积
+#!/usr/bin/bash
+#
+if [ $# -lt 2 ];then
+  echo "Usage :./calculate.sh arg1 arg2"
+  exit
+elif [ $# -gt 2 ];then
+  echo "Usage :./calculate.sh arg1 arg2"
+  exit
+else
+  echo "result:"
+fi
+
+
+let sum=$1+$2
+let multi=$1*$2
+echo "sum is $sum"
+echo "multi is $multi"
+
 
 
 

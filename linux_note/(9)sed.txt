@@ -1,0 +1,25 @@
+sed(流编辑器)  stream editor
+对文件不处理，对模式空间进行处理
+
+sed [option] 'AddressCommand' file ...
+	-n:静默模式，不显示模式空间
+Address
+1.startLine,endline   1,100 
+	$最后一行
+	$-1 倒数第2行
+2./pattern/  
+3./pattern1/, /pattern2/  两个匹配模式之间的行
+4.LineNum  指定某行
+5.startLine，+N     从startline开始，向后n行
+
+command
+	d：删除   sed '1,2d' /home/lunarji/abc
+			  sed '/root/d' /home/lunarji/abc
+	p:显示符合条件行，搭配-n（静默模式）
+	a \string :指定行后面追加一行，内容为string  a \string \n string(追加两行)
+	i \string :指定行前面追加一行，内容为string
+	r filename:指定文件添加到指定行数
+	w filename:符合添加的内容（行）另存在指定文件中
+	
+	
+	
