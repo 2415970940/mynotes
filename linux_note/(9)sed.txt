@@ -3,6 +3,12 @@ sed(流编辑器)  stream editor
 
 sed [option] 'AddressCommand' file ...
 	-n:静默模式，不显示模式空间
+	-i:修改原文件
+	-f：指定script文件处理目的文件
+		sed -f /path/script file
+	-e script -e script -e script：
+	-r :使用扩展表达式
+	
 Address
 1.startLine,endline   1,100 
 	$最后一行
@@ -20,6 +26,45 @@ command
 	i \string :指定行前面追加一行，内容为string
 	r filename:指定文件添加到指定行数
 	w filename:符合添加的内容（行）另存在指定文件中
+	s /pattern/string/:将符合pattern的项替换成string，只替换每行中第一次匹配的
+	s /pattern/string/g：g全局替换
+	s /pattern/string/i：查找时忽略大小写
+	s /pattern/&string/i:&配后面追加
+	s /pattern/\\1/i:
 	
+smaple
+he love his lover.
+she love her liker.
+he like his liker.
+she like her lover.
+
+[lunarji@localhost ~]$ sed 's/l..e/&r/g' smaple 
+he lover his loverr.
+she lover her likerr.
+he liker his likerr.
+she liker her loverr.
+
+[lunarji@localhost ~]$ sed 's#\(l..e\)#\1r#' smaple 
+he lover his lover.
+she lover her liker.
+he liker his liker.
+she liker her lover.
+
+[lunarji@localhost ~]$ sed 's#l\(..e\)#L\1#g' smaple 
+he Love his Lover.
+she Love her Liker.
+he Like his Liker.
+she Like her Lover.
+
+[lunarji@localhost ~]$ sed 's#l\(..e\)\b#L\1#g' smaple 
+he Love his lover.
+she Love her liker.
+he Like his liker.
+she Like her lover.
+练习，找出文件目录
+echo "/etc/rc.d/rc" | sed -r 's#^(\/.*\/)[^/]+\/?#\1#g'
+/etc/rc.d
+echo "/etc/rc.d/rc" | sed -r 's#^(\/.*\/)([^/]+)#\2#g'
+rc
 	
 	

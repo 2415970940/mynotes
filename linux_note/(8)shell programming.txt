@@ -162,7 +162,159 @@ let multi=$1*$2
 echo "sum is $sum"
 echo "multi is $multi"
 
+5.字符串测试
+==
+!=
+>
+<
+-n string    string是否为空，空为真
+-s string    string是否为空，空为假
+练习
+传递三个参数，第一个整数，第二个运算符，第三个是整数，显示结果保留两位精度
+
+			#!/usr/bin/bash
+			#
+			echo $1,$2,$3,$4,$5
+			if [ $# -lt 3 ];then
+			  echo "Usage:./calc.sh arg1 arg2 arg3"
+			  exit 1
+			elif [ $# -gt 3 ];then
+			  echo "Usage:./calc.sh arg1 arg2 arg3"
+			  exit 1
+			else
+			  echo "result:"
+			fi
+
+			a=$1
+			b=$2
+			c=$3
+
+			if [ $2 == '+' ];then
+			  result=$[$a+$c]
+			elif [ $2 == '-' ];then
+			  result=$[$a-$c]
+			elif [ $2 == '*' ];then
+			  result=$[$a*$c]
+			elif [ $2 == '/' ];then
+			  echo "scale=2;$a/$c;"|bc
+			else
+			  echo "arg2 must be +,_,*,/"
+			  exit 1
+			fi
+
+			echo "scale=2;$result;"|bc
+
+判断主机cpu生产商，其信息在/proc/cpuinfo中vendor id 一行
+AuthenticAMD  AMD
+GenuineIntel  Intel
+
+			#!/usr/bin/bash
+			#
+			result1=`cat /proc/cpuinfo | grep -o "GenuineIntel"|uniq`
+			result2=`cat /proc/cpuinfo | grep -o "AuthenticAMD"|uniq`
+			if [ $result1 = "GenuineIntel" ];then
+			  echo "Intel"
+			elif [ $result2 = "AuthenticAMD" ];then
+			  echo "AMD"
+			else
+			  echo "unkown"
+			fi
+
+传递三个参数整数，判断最大和最小，显示出来
+			#!/usr/bin/bash
+			#
+			echo $1,$2,$3
+			if [ $# -lt 3 ];then
+			  echo "Usage:./calc.sh arg1 arg2 arg3"
+			  exit 1
+			elif [ $# -gt 3 ];then
+			  echo "Usage:./calc.sh arg1 arg2 arg3"
+			  exit 1
+			else
+			  echo "result:"
+			fi
+
+			max=0
+
+			if [ $max -lt $1 ];then
+			  max=$1
+			fi
+
+			if [ $max -lt $2 ];then
+			  max=$2
+			fi
+
+			if [ $max -lt $3 ];then
+			  max=$3
+			fi
+
+			echo "MAX:$max"
+
+			min=$1
+
+			if [ $1 -gt $2 ];then
+			  min=$2
+			fi
 
 
+			if [ $min -gt $3 ];then
+			  min=$3
+			fi
 
+			echo "MIN:$min"
+
+for循环，while，until
+for 变量 in 列表:do
+   ...
+done
+
+seq start step end
+{1..100}
+1到100之和
+		#!/usr/bin/bash
+		#
+		sum=0
+		for i in `seq 100`
+		do
+		  sum=$[$sum+$i]
+		done
+
+		echo $sum
+		
+
+declare -i sum=0  
+-i  整型
+-x  环境变量
+
+练习
+1。向每个用户问好显示shell。统计用户个数，扩展bash用户
+			#!/usr/bin/bash
+			#
+			lines=`wc -l /etc/passwd|cut -d' ' -f1`
+			echo "users:$lines"
+
+			for i in `seq $lines`
+			do
+			  echo "hello,`cat /etc/passwd | head -n $i | tail -1 | cut -d: -f1,7`"
+			done
+
+			bashline=`cat /etc/passwd |grep "bash"| cut -d: -f1,7|wc -l`
+			echo "bash:$bashline users"
+			for i in `seq $bashline`
+			do
+			  echo "hello,`cat /etc/passwd | grep 'bash'| head -n $i | tail -1 | cut -d: -f1,7`"
+			done
+100以内被3整除的正整数的和
+			#!/usr/bin/bash
+			#
+			sum=0
+
+			for i in `seq 100`;do
+			  if [ $[$i%3] -eq 0 ];then
+				echo $i
+				sum=$[$sum+$i]
+			  fi
+			done
+
+			echo $sum
 
