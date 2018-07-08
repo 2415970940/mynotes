@@ -1,0 +1,65 @@
+文本查找grep egrep fgrep
+文件查找
+locate
+	非实时，模糊匹配，查找是根据全系统文件数据库进行的
+	手动生成数据库 updatedb  速度快
+find
+	实时
+	精确
+	支持众多查找标准
+	遍历目录中所有文件，速度慢
+	
+	find 查找路径 查找标准 查找后的处理
+查找路径	   当前目录
+查找标准		所有文件
+查找后的处理    显示屏幕
+
+-name ‘filename’  对文件名的精确查找
+	支持文件名通配
+	-name ‘*filename*’
+-regex pattern  基于正则表达式查找
+-user Username  属主查找
+-group Groupname 
+-uid  UID
+-gid  GID
+-nouser    没有属主的文件
+-nogroup
+-type
+	f
+	d
+	c
+	b
+	l
+	p
+	s   socket
+-size   默认字节
+find -size +10M
+find -size -10k
+
+组合条件
+-a   默认
+-o
+-not
+
+-mtime
+-ctime
+-atime
+
+-cmin
+-mmin
+-amin
+
+-perm 权限精确匹配
+-perm /777 模糊匹配，任意一位符合
+-perm -640  文件权限完全能包含MODE的才能显示
+
+
+查找后处理
+默认 -print
+-ls
+-ok  COMMAND \
+	find -perm -007 -exec chmod o-x {} \;
+	{}引用文件名   \ 结束
+	find -type d -ok chmod o+x {} \; 每次操作需要确认
+	
+ 

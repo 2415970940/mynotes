@@ -168,7 +168,7 @@ echo "multi is $multi"
 >
 <
 -n string    string是否为空，空为真
--s string    string是否为空，空为假
+-z string    string是否为空，空为假
 练习
 传递三个参数，第一个整数，第二个运算符，第三个是整数，显示结果保留两位精度
 
@@ -318,3 +318,19 @@ declare -i sum=0
 
 			echo $sum
 
+
+组合条件
+	-a 与
+	-o 或
+	!  非
+	
+if [ #$ -le 3 -a #$ -gt 3 ]	
+if [ #$ -le 3 ] && [ #$ -gt 3 ]
+let i++
+let i+=1
+let ++i
+*=
+/=
+%=
+	
+	

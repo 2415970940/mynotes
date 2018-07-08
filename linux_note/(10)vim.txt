@@ -91,13 +91,75 @@ vim
 			.
 可视化模式
 		v
+末行模式
 查找
-/pattern
-?pattern  从后查找
-	n
-	N
+	/pattern
+	?pattern  从后查找
+		n
+		N
 查找替换 末行模式
 1,199s@..@..@gi
+1,$全文
+%全文
+/etc/yum.repos.d/server.repo文件
+%s/instructor\.example\.com\/pub/172.0.0.1/yum/g
 
-		
+打开多个文件
+vim file1 flie2
+file1末行模式输入 :next
+file2    :prev	
+:last 最后一个文件   :first	第一个文件
+退出  :qa
+
+分屏显示
+（1）ctrl+w  s:水平拆分
+	 ctrl+w  v:垂直拆分
+
+	 vim -o file1 file2
+	 vim -O file1 file2
+（2）关闭一个分屏:
+　　:only 或者 ctrl+w 和 o取消其它分屏，只保留当前分屏
+　　ctrl+w 和 c(close)
+　　只剩最后一个分屏以后推出：
+　　ctrl+w 和 q(quit)
+（3）移动光标，也就是切换分屏；也可以移动分屏，比如将左分屏移动到右边。
+　　ctrl+w 和 w（各种切换，只有两个分屏的时候还是比较方便的）
+　　ctrl+w 和 h(H) 左
+　　ctrl+w 和 j(J) 下
+　　ctrl+w 和 k(K) 上
+　　ctrl+w 和 l(L) 右
+（4）最后就是改变分屏尺寸的操作了。
+　　ctrl+w 和 < 左
+　　ctrl+w 和 > 右
+　　ctrl+w 和 + 上
+　　ctrl+w 和 - 下
+　　ctrl+w 和 = 恢复均等
 	
+另存文件
+:w /path
+
+文件加载
+:r /path  同sed 'r filename':指定文件添加到指定行数
+
+跟shell交互
+:! ls
+
+显示行号
+:set number   :set nu    :set nonu
+忽略大小写
+:set ic        :set ignorecase
+:set noignorecase
+设定缩进
+:set autoindent   :set ai
+高亮显示
+:set hlsearch   :set nohlsearch
+语法高亮
+:syntax on    :syntax off
+
+vim配置文件
+/etc/vimrc 全局
+~/.vimrc
+
+vimtutor vim学习
+
+
