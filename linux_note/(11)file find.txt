@@ -62,4 +62,7 @@ find -size -10k
 	{}引用文件名   \ 结束
 	find -type d -ok chmod o+x {} \; 每次操作需要确认
 	
+XARGS
+	find /etc -size +1M -exec echo {} >> /tmp/etc.largefiles \;
+	find /etc -size +1M | xargs echo >> /tmp/etc.largefiles
  

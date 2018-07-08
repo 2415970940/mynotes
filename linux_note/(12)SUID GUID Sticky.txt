@@ -1,0 +1,20 @@
+特殊权限
+SUID：运行某程序时，相应进程的属主是程序文件的自身属主，而不是启动着
+	chmod u+s file
+		若file本身有x，那么SUID显示为s，否则是S
+SGID：运行某程序时，相应进程的属组是程序文件的自身属组，而不是启动着
+	chmod g+s file
+Sticky：在一个公共目录。每个都可以创建文件，删除自己的文件，但不能删除别人的文件
+	chmod o+t dir
+	
+000
+001
+010
+...
+111
+
+chmod 1755 /backup.test
+1755  Sticky
+2755  SGID
+3      SGID SUID
+5      SUID Sticky
