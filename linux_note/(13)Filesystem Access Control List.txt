@@ -1,3 +1,85 @@
 FACL
+filesystem access control list
 利用文件扩展保存额外的访问控制权限
 
+getfacl
+
+setfacl
+	-m  设定
+		d:u:UID:perm
+		d:g:GID:perm
+	-x	取消
+
+setfacl -m u:user1:rw file
+setfacl -m g:mygroup:rw file
+
+Owner-Group-Other 默认
+Owner-facl,user-Group-facl,group-Other
+
+	[root@localhost shells]# setfacl -m u:lunarji:rwx b
+	[root@localhost shells]# getfacl b
+	# file: b
+	# owner: root
+	# group: root
+	user::rw-
+	user:lunarji:rwx
+	group::r--
+	mask::rwx
+	other::r--
+mask 限定rwx的范围，不能高于其
+
+[lunarji@localhost shells]$ ls -l
+total 8
+-rw-rwxr--+ 1 lunarji lunarji 4 Jul  9 09:28 a
+-rw-rwxr--+ 1 root    root    8 Jul  9 09:33 b
+
++扩展属性 ，cp mv 不能成功
+
+d:u:UID:perm  目录设定
+
+
+几个命令
+w
+who
+whoami
+
+last  显示登录日志及重启历史 /var/log/wtmp
+	-n	控制条数
+lastb  /var/log/btmp 显示错误登录信息
+	-n	
+lastlog 每个用户的最近一次的登录信息
+	-u username
+
+basename
+	取得文件的基名
+	basename  $0
+	
+mail
+	mail -s "hello" lunarji
+	-s 信名  ctrl+d结束
+
+	mail -s "hello" lunarji < file
+
+	echo "" | mail -s "hello" lunarji
+	
+hostname
+	
+RANDOM
+0~32678	
+	
+随机数生成器 熵池
+/dev/random
+/dev/urandom
+练习 10个随机数，找出最大值和最小值
+
+
+	
+终端类型
+	console：控制台
+	pty 物理终端  VGA
+	tty 虚拟终端  VGA
+	ttys 串行终端
+	pts/# 伪终端
+	
+	
+	

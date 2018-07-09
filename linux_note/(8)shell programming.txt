@@ -333,4 +333,91 @@ let ++i
 /=
 %=
 	
-	
+面向过程
+		控制结构
+			顺序结构
+			选择结构
+			循环结构
+
+选择结构
+if 单分支，双分支，多分支
+case
+	case obj in
+	patten1)
+	command...
+	;;
+
+	patten2)
+	command...
+	;;
+
+	*)
+	command...
+
+easc
+只接受start,stop,restart,status参数	
+	  1 #!/usr/bin/bash
+	  2 #
+	  3 case $1 in
+	  4 "start")
+	  5 echo "start...";;
+	  6 'restart')
+	  7 echo "stop..."
+	  8 echo "start...";;
+	  9 'stop')
+	 10 echo "stop...";;
+	 11 'status')
+	 12 echo "status..";;
+	 13 *)
+	 14 echo "Usage:`basename $0` start|restart|stop|status"
+	 15 esac
+
+showlogged.sh -v -c -h|--help	 
+-h 只能单独使用，帮助信息
+-c 系统登录的所有用户数，同时使用-v 显示用户数，及其用户相关信息
+
+		#!/usr/bin/bash
+		#
+
+		if [ $# -eq 0 ] || [ $# -gt 2 ];then
+			echo "Usage:`basename $0` -h|--help"
+			echo "Usage:`basename $0` -c |-c -v"
+			exit 7
+		fi
+
+		if [ $# -eq 1 ];then
+		  case $1 in
+		  '-h'|'--help')
+			echo "Usage:`basename $0` -h|--help"
+			echo "Usage:`basename $0` -c |-c -v";;
+		  '-c')
+			echo "logged:`who | wc -l` users";;
+		   *)
+			 echo "Usage:`basename $0` -h|--help"
+			 echo "Usage:`basename $0` -c|-c -v";;
+		   esac
+		elif [ $# -eq 2 ];then
+		   case $1 in
+			 '-c')
+			   if [ $2 == '-v' ];then
+				  echo "logged:`who | wc -l` users"
+				  echo "`who`"
+			else
+			  echo "Usage:`basename $0` -c|-c -v"
+			fi;;
+			  '-v')
+				 if [ $2 == '-c' ];then
+			   echo "logged:`who | wc -l` users"
+			   echo "`who`"
+			 else
+			   echo "Usage:`basename $0` -c|-c -v"
+				 fi;;
+			*)
+			  echo "Usage:`basename $0` -c|-c -v"
+				  echo "logged:`who | wc -l` users";;
+			esac
+		else
+		   echo "Usage:`basename $0` -c|-c -v"
+		   echo "logged:`who | wc -l` users"
+
+		fi

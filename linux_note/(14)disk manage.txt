@@ -1,0 +1,81 @@
+磁盘管理
+bios - mbr - 内核
+
+MBR master boot record(512byte)
+	446byte Bootload
+	64byte 标识分区
+	2byte  Magic Number 标记MBR是否有效
+
+硬链接
+	不同路径的文件指向同一个iNode
+	ln src des
+	1.只能对文件创建，不能对目录
+	2.不能跨文件系统
+	3.增加文件被链接次数
+	
+	-v显示过程
+	
+软链接
+	ln -s src des
+	a文件指向iNode，软链接b文件指向a的文件路径，b文件大小是文件路径的字符数
+	1.可以对文件和目录创建
+	2.能跨文件系统
+	3.不增加文件被链接次数
+	4.大小是文件路径所包含字符次数
+
+	
+du 对文件和目录磁盘使用的空间的查看
+		-s
+		-sh
+df 	-i
+	-h
+
+设备文件
+k 按块为单位，随机访问的设备  硬盘
+c 按字符为单位，线性设备 
+
+/dev 主设备号， 标识设备类型             major number
+	 次设备号	标识同一种类型的不同设备 minor number
+	 存储在iNode中 不占用磁盘
+	 
+MKNOD(1)                         User Commands                        MKNOD(1)
+
+NAME
+       mknod - make block or character special files
+
+SYNOPSIS
+       mknod [OPTION]... NAME TYPE [MAJOR MINOR]
+-m  MODE
+
+mknod -m 640 mydev c 66 0
+
+硬盘
+IDE,ATA ：hd
+SATA：sd
+SCSI：sd
+USB：sd
+
+主分区可以有4个。逻辑分区可以多个。扩展分区就一个
+fdisk -l
+fdisk /dev/sda
+	p 显示当前硬盘的分区
+	n 创建新分区
+		e 扩展分区
+		p 主分区
+	d 删除分区
+	w 保存退出
+	q 不保存退出
+	t 修改分区类型
+	l 显示支持分区所有类型
+
+cat /proc/partitions 查看分区表 
+partprobe       内核重读分区表
+
+文件系统格式
+ext3 ext2 xfs 通过VFS（virtual Filesystem）让用户进程调用
+
+
+
+
+
+	
