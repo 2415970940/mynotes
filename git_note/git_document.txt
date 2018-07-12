@@ -65,5 +65,48 @@ cd mynotes
 本地和远程仓库通过git push和git pull同步
 
 8.分支管理
+查看分支：git branch
 
+创建分支：git branch <name>
+
+切换分支：git checkout <name>
+
+创建+切换分支：git checkout -b <name>
+
+合并某分支到当前分支：git merge <name>
+
+删除分支：git branch -d <name>
+
+流程
+1.
+	$ git checkout -b dev
+	Switched to a new branch 'dev'
+
+	$ git checkout -b dev 相当有下面两个命令
+	$ git branch dev
+	$ git checkout dev
+	Switched to branch 'dev'
+2、
+	$ git branch
+	* dev
+	  master
+	 当前分支前面会标一个*号
+	$ git add readme.txt 
+	$ git commit -m "branch test"
+	[dev b17d20e] branch test
+	 1 file changed, 1 insertion(+)
+3切换master
+	$ git checkout master
+	Switched to branch 'master'
+4合并
+	$ git merge dev
+	Updating d46f35e..b17d20e
+	Fast-forward
+	 readme.txt | 1 +
+	 1 file changed, 1 insertion(+)
+5删除分支dev	
+	$ git branch -d dev
+	Deleted branch dev (was b17d20e).
+	$ git branch
+	* master
 

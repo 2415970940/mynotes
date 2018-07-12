@@ -70,9 +70,32 @@ fdisk /dev/sda
 
 cat /proc/partitions 查看分区表 
 partprobe       内核重读分区表
+partx
 
 文件系统格式
 ext3 ext2 xfs 通过VFS（virtual Filesystem）让用户进程调用
+
+block size:1024,2048,4096
+
+ext3 journal file system
+
+
+创建文件系统
+ext2 ext3
+mkfs
+	-t 	FSTYPE
+mkfs -t ext2 /dev/sda5          = mkfs.ext2
+
+/cat/filesystems    查看支持文件系统
+
+专门对ext文件系统的
+mk2fs
+    -j  journal       ext3
+	-b   指定块大小，默认4096           1024 2048 4096
+	-L   指定分区卷标 filesystems label
+	-m   指定预留给超级用户的百分比
+	-i   指定iNode比例
+		mkfs -i 4096 /dev/sda5       
 
 
 
