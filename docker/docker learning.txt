@@ -1,0 +1,143 @@
+Docker
+1.镜像 容器 仓库
+2。安装centos7。5
+a> 若有老版本先删除
+	$ sudo yum remove docker \
+					  docker-client \
+					  docker-client-latest \
+					  docker-common \
+					  docker-latest \
+					  docker-latest-logrotate \
+					  docker-logrotate \
+					  docker-selinux \
+					  docker-engine-selinux \
+					  docker-engine
+
+b> Install required packages
+				  
+	$ sudo yum install -y yum-utils \
+		device-mapper-persistent-data \
+		lvm2
+		
+c>下载地址
+		$ sudo yum-config-manager \
+			--add-repo \
+			https://download.docker.com/linux/centos/docker-ce.repo
+	
+yum makecache fast	
+d> install
+		$ sudo yum install docker-ce
+e> systemctl start docker
+		docker version
+		docker run hello-world
+		
+3.配置镜像加速
+mkdir -p /etc/docker
+vim /etc/docker/daemon.json
+	systemctl daemon-reload
+	systemctl restart docker
+			
+			
+4.常用命令
+	帮助命令
+		docker version
+		docker info
+		docker --help
+			
+	镜像命令
+		docker images
+			[root@localhost ~]# docker images
+				REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+				hello-world         latest              2cb0d9787c4d        9 days ago          1.85kB
+
+		docker images -a   所有镜像
+		docker images -q   镜像ID
+					  --digests  摘要信息
+					  --no-trunc 完整镜像信息
+			
+	docker search -s 30 --no-trunc tomcat      
+	docker pull tomcat     download
+	docker rmi tomcat      delete     use -f to force
+	docker rmi -f $(docker images -qa)
+	
+容器
+	docker run -it centos
+	
+		"docker create"  //新建一个container，container创建好之后处于停止状态
+
+		"docker start"  //启动一个已经创建好的container
+
+		"docker run"  //等价于先create再start,那run这个过程后台又做了以下事情：
+
+		（1）检查本地是否存在指定的image，不存在就从公有仓库下载
+
+		（2）利用image创建并启动一个container
+
+		（3）分配一个文件系统，并在只读的image层外面挂载一层可读写层
+
+		（4）从宿主主机配置的网桥接口中桥接一个虚拟接口到container中去
+
+		（5）从地址池配置一个IP地址给container
+
+		（6）执行用户指定的应用程序
+
+		（7）执行完毕后container被终止
+			
+		"docker run -d"  //container在后台以守护态（daemonized）形式运行，container启动后会返回一个唯一的ID
+
+		"docker ps"  //查看运行的container信息
+
+		"docker ps -a"  //查看处于终止状态的container
+
+		"docker logs ID"  //获取container的输出信息
+			
+			
+终止启动container
+
+"docker stop ID"  //通过container ID终止container
+
+"docker start ID"  //启动container
+
+"docker ps -a -q"  //查看处于终止状态的container ID信息，处于终止状态的container可以通过start命令启动
+
+"docker restart ID"  //终止并重新运行container			
+			
+			
+	-d 后台运行
+ docker attach id 进入某个容器(使用exit退出后容器也跟着停止运行)
+
+ docker exec -ti id 启动一个伪终端以交互式的方式进入某个容器（使用exit退出后容器不停止运行）	
+			
+	
+ docker run -d -p 8888:8080 tomcat
+		-p  容器设定端口：Tomcat端口 
+		
+docker rm ID 删除
+
+提交镜像
+docker commit -m="提交信息"  -a="作者"  容器ID 要创建的目标镜像名:[标签名]
+
+docker cp :用于容器与主机之间的数据拷贝
+	docker cp /www/runoob 96f7f14e99ab:/www	
+	docker cp  96f7f14e99ab:/www /tmp/	
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			

@@ -103,10 +103,40 @@ cd mynotes
 	Updating d46f35e..b17d20e
 	Fast-forward
 	 readme.txt | 1 +
-	 1 file changed, 1 insertion(+)
+	 1 file changed, 1 insertion(+)	
+	 要强制禁用Fast forward模式，Git就会在merge时生成一个新的commit，这样，从分支历史上就可以看出分支信息。
+	 git merge --no-ff -m "merge with no-ff" dev
 5删除分支dev	
 	$ git branch -d dev
 	Deleted branch dev (was b17d20e).
 	$ git branch
 	* master
+用git log --graph命令可以看到分支合并图
 
+当手头工作没有完成时，先把工作现场git stash一下，然后去修复bug，修复后，再git stash pop，回到工作现场。
+git branch -D <name>强行删除
+
+远程仓库和分支
+
+    查看远程库信息，使用git remote -v；
+
+    本地新建的分支如果不推送到远程，对其他人就是不可见的；
+
+    从本地推送分支，使用git push origin branch-name，如果推送失败，先用git pull抓取远程的新提交；
+
+    在本地创建和远程分支对应的分支，使用git checkout -b branch-name origin/branch-name，本地和远程分支的名称最好一致；
+
+    建立本地分支和远程分支的关联，使用git branch --set-upstream branch-name origin/branch-name；
+
+    从远程抓取分支，使用git pull，如果有冲突，要先处理冲突。
+	
+标签管理
+
+
+    命令git tag <tagname>用于新建一个标签，默认为HEAD，也可以指定一个commit id；
+
+    命令git tag -a <tagname> -m "blablabla..."可以指定标签信息；
+
+    命令git tag可以查看所有标签。
+	git show <tagname>查看标签信息
+	标签总是和某个commit挂钩

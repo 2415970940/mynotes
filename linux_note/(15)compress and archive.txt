@@ -1,0 +1,47 @@
+压缩，解压缩
+压缩格式gz，bz2，xz，zip，Z
+
+压缩算法：算法不同，压缩比不同
+不能压缩目录。默认压缩后删除文件
+gzip：
+bzip2：
+xz：
+
+gzip    gunzip=gunzip -d
+	-#  指定压缩比，默认6
+zcat
+.gz
+
+bzip2：比gzip更大的压缩工具
+bzip2 -k  压缩时保留原文件
+bunzip2
+bzcat
+.bz2
+
+xz
+unxz
+xzcat
+.xz
+
+zip text.zip text    可以压缩目录，默认不会删除原文件
+unzip
+
+archive 归档，归档本身并不意味着压缩
+tar归档不压缩
+	-c 创建归档
+	-f 操作归档文件
+	-x 展开归档
+	--xattrs 归档时，保留文件的扩展属性信息
+	-t 不展开归档，查看那些归档文件
+tar -zcf 归档并gzip压缩
+tar -zxf  解压缩并展开归档
+
+	-jcf  bzip2
+	-jxf   
+	
+cpio 归档工具
+
+
+	
+	
+

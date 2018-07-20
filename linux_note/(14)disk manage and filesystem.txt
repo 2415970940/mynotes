@@ -94,11 +94,104 @@ mk2fs
 	-b   指定块大小，默认4096           1024 2048 4096
 	-L   指定分区卷标 filesystems label
 	-m   指定预留给超级用户的百分比
-	-i   指定iNode比例
-		mkfs -i 4096 /dev/sda5       
-
-
-
-
-
+	-i   指定iNode比例  默认8192
+		mkfs -i 4096 /dev/sda5    
+	-N   指定iNode个数
+	-F  强制创建文件系统
+	-E  额外的文件系统属性
 	
+blkid 查看磁盘设备相关属性
+	UUID
+	TYPE
+	LABEL
+e2label 查看或定义卷标
+	e2label 设备文件 卷标
+tune2fs 调整文件系统的相关属性
+	-j          ext2变成ext3
+	-L   设定卷标
+	-m # 调整预留百分比
+	-r   指定预留块数
+	-o   设定挂载选项
+	-c   指定挂载次数，达到次数进行自检  0或-1关闭此功能
+	-l   显示超级块中的显示
+
+dumpe2fs  显示文件属性信息
+	-h
+	
+fsck 自检   检查并修复linux
+	-a 自动修复
+
+e2fsck  ext2/ext3文件系统修复
+
+挂载：新文件系统关联至根文件系统
+	mount 设备 挂载点
+	设备：/dev/sda5        LABEL=''        UUID
+	挂载点：目录
+	要求：
+		1.此目录没有被其他进程使用
+		2.目录事先存在
+		3.目录中原有文件会被暂时隐藏
+挂载完成后，通过挂载点访问
+
+mkdir /mnt/test/
+mount /dev/sda5 /mnt/test/
+
+	-a 挂载/etc/fstab中定义的所有文件系统
+	-n 默认mount每挂载一个设备，将其信息保存在/etc/mtab中，-n不保存信息到此文件中
+	-o loop:挂载本地回环设备
+	mnt -o loop /xxx.iso       /media
+umount卸载
+umount /mnt/test/
+
+swap分区 允许过载使用
+
+free 查看物理空间和swap的使用情况
+
+创建交换分区
+fdisk
+mkswap /dev/sda5
+启用交换分区swapon /dev/sda5
+swapon -a 启动/etc/fstab中定义的所有交换设备
+
+回环设备
+loopback  使用软件模拟实现硬件
+
+	dd命令：复制文件
+	dd if=src of=des 
+	bs  count
+cp 从硬盘通过VFS读到内存，然后放到硬盘
+
+dd 硬盘到硬盘	
+
+dd if=/dev/sda of=/mnt/usb/mbr.backup bs=512 count1  复制MBR
+
+
+os启动自动挂载/etc/fstab
+#cat /etc/fstab
+/dev/mapper/centos-root                   /              xfs     defaults        0 0
+UUID=361743d5-8f73-48d7-84c6-de914b8993a2 /boot          xfs     defaults        0 0
+/dev/mapper/centos-home                   /home          xfs     defaults        0 0
+/dev/mapper/centos-swap                   swap           swap    defaults        0 0
+
+设备   挂载点   文件系统类型     挂载选项  转储频率（备份）    自检次序
+
+ fuser - identify processes using files or sockets
+	-v 查看文件正在使用的进程
+	-k kill
+	-km 卸载挂载点
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,103 @@
+镜像操作：
+    build     Build an image from a Dockerfile
+    commit    Create a new image from a container's changes
+    images    List images
+    load      Load an image from a tar archive or STDIN
+    pull      Pull an image or a repository from a registry
+    push      Push an image or a repository to a registry
+    rmi       Remove one or more images
+    search    Search the Docker Hub for images
+    tag       Tag an image into a repository
+    save      Save one or more images to a tar archive 
+    history   显示某镜像的历史
+    inspect   获取镜像的详细信息
+
+    容器及其中应用的生命周期操作：
+    create    创建一个容器
+    kill      Kill one or more running containers
+    inspect   Return low-level information on a container, image or task
+    pause     Pause all processes within one or more containers
+    ps        List containers
+    rm        删除一个或者多个容器
+    rename    Rename a container
+    restart   Restart a container
+    run       创建并启动一个容器
+    start     启动一个处于停止状态的容器
+    stats     显示容器实时的资源消耗信息
+    stop      停止一个处于运行状态的容器
+    top       Display the running processes of a container
+    unpause   Unpause all processes within one or more containers
+    update    Update configuration of one or more containers
+    wait      Block until a container stops, then print its exit code
+    attach    Attach to a running container
+    exec      Run a command in a running container
+    port      List port mappings or a specific mapping for the container
+    logs      获取容器的日志
+
+    容器文件系统操作：
+    cp        Copy files/folders between a container and the local filesystem
+    diff      Inspect changes on a container's filesystem
+    export    Export a container's filesystem as a tar archive
+    import    Import the contents from a tarball to create a filesystem image
+
+    Docker registry 操作：
+    login     Log in to a Docker registry.
+    logout    Log out from a Docker registry.
+
+    Volume 操作
+    volume    Manage Docker volumes
+
+    网络操作
+    network   Manage Docker networks
+
+    Swarm 相关操作
+    swarm     Manage Docker Swarm
+    service   Manage Docker services
+    node      Manage Docker Swarm nodes
+
+    系统操作：
+    version   Show the Docker version information
+    events    持续返回docker 事件
+    info      显示Docker 主机系统范围内的信息
+	
+	
+	
+	
+	# 查看运行中的容器
+docker ps
+
+# 查看所有容器
+docker ps -a
+
+# 退出容器
+按Ctrl+D 即可退出当前容器【但退出后会停止容器】
+
+# 退出不停止容器：
+组合键：Ctrl+P+Q
+
+# 启动容器
+docker start 容器名或ID
+
+# 进入容器
+docker attach 容器名或ID
+
+# 停止容器
+docker stop 容器名或ID
+
+# 暂停容器
+docker pause 容器名或ID
+
+#继续容器
+docker unpause 容器名或ID
+
+# 删除容器
+docker rm 容器名或ID
+
+# 删除全部容器--慎用
+docker stop $(docker ps -q) & docker rm $(docker ps -aq)
+
+#保存容器，生成镜像
+docker commit 容器ID 镜像名称
+
+#从 host 拷贝文件到 container 里面
+docker cp /home/soft centos:/webapp
