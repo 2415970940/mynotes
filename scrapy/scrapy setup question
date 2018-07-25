@@ -1,0 +1,27 @@
+scrapy 安装中问题
+安装scrapy包需要多个包支持
+安装pip
+win32py
+lxml
+twisted
+
+
+安装twisted问题
+error: Unable to find vcvarsall.bat解决办法
+https://blogs.msdn.microsoft.com/pythonengineering/2016/04/11/unable-to-find-vcvarsall-bat/
+下载visual c++ build tool
+
+
+对应版本才能成功
+1.wheel
+pip install wheel
+2.lxml
+http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml
+3.PyOpenssl
+https://pypi.python.org/pypi/pyOpenSSL#downloads
+4.Twisted
+http://www.lfd.uci.edu/~gohlke/pythonlibs/#twisted
+5.Pywin32
+https://sourceforge.net/projects/pywin32/files/pywin32/Build%20220/
+6.Scrapy 
+pip install scrapy

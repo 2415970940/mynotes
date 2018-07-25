@@ -1,0 +1,23 @@
+tar -xzvf redis-4.0.10.tar.gz
+
+cd redis-4.0.10
+
+　　make         必须有gcc
+
+　　cd src
+
+　　make install PREFIX=/usr/local/redis
+
+移动配置文件到安装目录下
+cd ../
+
+　　mkdir /usr/local/redis/etc
+
+　　mv redis.conf /usr/local/redis/etc
+
+配置redis为后台启动
+
+　　vi /usr/local/redis/etc/redis.conf //将daemonize no 改成daemonize yes
+
+
+/usr/local/redis/bin/redis-server /usr/local/redis/etc/redis.conf 

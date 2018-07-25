@@ -1,0 +1,8 @@
+scrapy startproject tutorail
+scrapy genspider quotes http://quotes.toscrape.com/
+scrapy crawl quotes
+scrapy shell quotes.toscrape.com
+scrapy crawl quotes -o quotes.json
+scrapy crawl quotes -o quotes.jl
+scrapy crawl quotes -o quotes.csv
+scrapy crawl quotes -o quotes.xml

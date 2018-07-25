@@ -1,0 +1,157 @@
+1.urllib库
+	request.urlopen
+
+	request.urlretrieve
+
+	parse.urlencode
+
+	parse.parse_qs
+
+	parse.urlparse
+	parse.urlsplit
+
+	proxHandler
+			url = request.Request(url,headers=headers)
+			handler = request.ProxyHandler({"HTTP":"121.232.148.253:9000"})
+			opener = request.build_opener(handler)
+			resp = opener.open(url)
+			print(resp.read().decode('utf-8'))
+			
+	cookies
+			1.在headers加cookie
+			2.http.cookiesjar模块有4个模块CookieJar FileCookieJar MozillaCookieJar LWPCookieJar
+					from urllib import request
+					from urllib import parse
+					from http import cookiejar
+
+					#声明一个CookieJar对象实例来保存cookie
+					cookie = cookiejar.CookieJar()
+					#利用urllib库中的request的HTTPCookieProcessor对象来创建cookie处理器
+					handler=request.HTTPCookieProcessor(cookie)
+					#通过handler来构建opener
+					opener = request.build_opener(handler)
+					#此处的open方法同urllib的urlopen方法，也可以传入request
+					response = opener.open('http://www.baidu.com')
+					for item in cookie:
+						print ('Name = '+item.name)
+						print ('Value = '+item.value)
+			3.from http.cookiejar import MozillaCookiejar
+			cookiejar = MozillaCookieJar('a.txt')
+			cookiejar.save(ignore_discard=TRUE)
+			cookiejar.load()
+2.requests库
+	requests.get(url)
+		
+		import requests
+
+		url = "https://www.baidu.com"
+		headers = {
+			'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
+			}
+		kw = {"wd":"python"}
+
+		response = requests.get(url,headers=headers,params=kw)
+		# print(response.content.decode('utf-8'))
+		# print(response.text)
+		print(response.url)
+		print(response.encoding)
+		print(response.status_code)
+							
+	text     某种编码方式输出
+	content	  bytes方式输出	
+
+    post方式	
+		response = requests.post(url,headers=headers,data=data)			
+					
+	post与get的不同。params和data
+
+
+	代理
+		import requests
+
+		url = "http://www.httpbin.org/ip"
+		headers = {
+			'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
+			}
+		proxies = {"http":"27.206.176.120:9000"}
+
+		response = requests.get(url,headers=headers,proxies=proxies)
+		print(response.text)
+					
+	cookies session
+		response.cookies.get_dict()
+		session = requests.Session()
+		session.get()
+		session.post()
+		
+	SSL证书
+		requests.get(url,verify=Fasle)
+					
+	lxml
+		def parse_text():
+			html = etree.HTML(text)
+			# print(etree.tostring(html))
+			print(etree.tostring(html,encoding='utf-8').decode('utf-8'))
+
+		def parse_file():
+			# 创建HTML解析
+			parser = etree.HTMLParser(encoding='utf-8')
+			html = etree.parse("test.html",parser=parser)
+			print(etree.tostring(html,encoding='utf-8').decode('utf-8'))
+
+		if __name__ == '__main__':
+			parse_file()	
+							
+	lxml_xpath
+
+			from lxml import etree
+			import json
+
+			parser = etree.HTMLParser(encoding='utf-8')
+			html = etree.parse('test.html',parser=parser)
+
+			# # 显示所有tr
+			# trs = html.xpath('//tr')
+			# for tr in trs:
+			#     print(etree.tostring(tr,encoding='utf-8').decode('utf-8'))
+
+			# 获取第2个tr标签
+			# tr = html.xpath('//tr[2]')[0]
+			# print(etree.tostring(tr,encoding='utf-8').decode('utf-8'))
+
+			#所有class是even
+			# trs = html.xpath("//tr[@class='even']")
+			# for tr in trs:
+			#     print(etree.tostring(tr,encoding='utf-8').decode('utf-8'))
+
+			# 获取所有a标签的href属性值
+			# trs = html.xpath("//a/@href")
+			# for tr in trs:
+			#     print(tr)
+			#     print(type(tr))
+
+			# 获取所有职位的纯文本
+			trlist = []
+			trs = html.xpath("//tr[position()>1]")
+			for tr in trs:
+				text = tr.xpath('.//a/text()')[0]
+				href = tr.xpath('.//a/@href')[0]
+				url = "https://hr.tencent.com/" + href
+				category = tr.xpath('./td[2]/text()')[0]
+				nums = tr.xpath('./td[3]/text()')[0]
+				address = tr.xpath('./td[4]/text()')[0]
+				tdict = {
+					"职位":text,
+					"详情":url,
+					"类型":category,
+					"需要人数":nums,
+					"地点":address
+				}
+				trlist.append(tdict)
+			print(trlist)
+
+			with open('a.json','w',encoding='utf-8') as fp:
+				json.dump(trlist,fp)
+
+			with open('a.json','r',encoding='utf-8') as fp:
+				json.load(fp)	

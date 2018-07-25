@@ -122,9 +122,17 @@ docker cp :用于容器与主机之间的数据拷贝
 	docker cp  96f7f14e99ab:/www /tmp/	
 			
 			
-			
-			
-			
+容器数据卷
+		docker run -it -v /宿主机绝对路径 ：/容器目录	镜像名
+		在主机上创建mydata，同时在容器内的centos创建myvolumn	
+		docker run -it -v /mydata:/myvolumn centos	 
+		查看绑定用 docker inspect 镜像ID
+		
+		只读，在主机上可以随意操作，在容器内，只能读，不能写，改，创建
+		docker run -it -v /宿主机绝对路径:/容器目录:ro	镜像名 
+		
+		
+		
 			
 			
 			

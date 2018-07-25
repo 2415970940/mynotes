@@ -1,0 +1,213 @@
+五大数据类型
+ key
+	所有key
+		keys *
+	是否存在
+		EXISTS k1
+	移动kv
+		move k3 2     //k3移到数据库2上
+	TTL key 以秒为单位，返回给定 key 的剩余生存时间(TTL, time to live)。
+		返回值：
+			当 key 不存在时，返回 -2 。
+			当 key 存在但没有设置剩余生存时间时，返回 -1 。
+			否则，以秒为单位，返回 key 的剩余生存时间。
+	EXPIRE key 55    key 55秒后过期
+	del key
+	type key  key类型
+	INCR  DECR  INCRBY  DECRBY
+
+1.string
+set/get/del/append/strlen
+
+GETRANGE k1 start end
+GETRANGE k1  0 3        
+GETRANGE k1  0 -1 		显示所有
+
+SETRANG k1 start string     k1从start位置用string字符串替换
+
+setex k1 10 4       设置k1等于4，存活10s （set with expire）
+
+setnx (set if not exist)  setnx k1 v11  若k1存在，不会覆盖，不存在就建立
+
+mset mget msetnx
+	mset k1 v1 k2 v2 k3 v3
+	mget k1 k2 k3
+	msetnx k1 v1 k2 v2 k3 v3
+	k1,k2存在，然后msetnx k2 v2 k3 v3，无法建立k3
+
+GETSET key value
+
+将给定 key 的值设为 value ，并返回 key 的旧值(old value)。
+
+当 key 存在但不是字符串类型时，返回一个错误。
+
+
+
+2.list
+lpush list1 1 2 3 4 5
+rpush list2 1 2 3 4 5
+lrange list1 0 -1
+lpop list1
+rpop list1
+lindex list1 2
+llen list1
+lrem key 删除n个value
+	lrem list3 2 3     删除list3中2个3
+	
+ltrim key index index   截取指定范围的然后赋值给key
+	注意截取的字段跟lpush，rpush有关
+		127.0.0.1:6379> lpush list1 1 2 3 4 5 6 7
+		(integer) 7
+		127.0.0.1:6379> ltrim list1 0 3
+		OK
+		127.0.0.1:6379> lrange list1 0 -1
+		1) "7"
+		2) "6"
+		3) "5"
+		4) "4"
+rpoplpush 源列表 目的列表
+		127.0.0.1:6379> lrange list1 0 -1
+		1) "7"
+		2) "6"
+		3) "5"
+		4) "4"
+		127.0.0.1:6379> lpush list2 1 2 3 4 5
+		(integer) 5
+		127.0.0.1:6379> lrange list2 0 -1
+		1) "5"
+		2) "4"
+		3) "3"
+		4) "2"
+		5) "1"
+		127.0.0.1:6379> rpoplpush list2 list1
+		"1"
+		127.0.0.1:6379> lrange list1 0 -1
+		1) "1"
+		2) "7"
+		3) "6"
+		4) "5"
+		5) "4"
+
+lset key index value   替换k中index索引的值
+linsert key before/after value1 value2
+
+3.set
+sadd / smembers /sismember
+	127.0.0.1:6379> sadd set1 1 1 2 2 3 3 3
+	(integer) 3
+	127.0.0.1:6379> smembers set1
+	1) "1"
+	2) "2"
+	3) "3"
+	127.0.0.1:6379> sismember set1 3  //是否存在某元素
+	(integer) 1
+	127.0.0.1:6379> sismember set1 0
+	(integer) 0
+	127.0.0.1:6379> 
+
+scard 获取元素个数
+
+srem key value 删除set中value
+
+srandmember key num    从set1中随机出num个数
+
+原来set1中有1，2，3
+sadd set1 1 2 3 4 5 6 7实际加了4个数字
+
+spop key  随机出栈
+
+smove source destination member
+smove set1 set2 member  将set1中的number赋值给set2
+
+sdiff   差集
+sinter  交集
+sunion  并集
+	127.0.0.1:6379> sadd set1 1 2 3 4 5
+	(integer) 5
+	127.0.0.1:6379> sadd set2 1 2 3 a b
+	(integer) 5
+	127.0.0.1:6379> sdiff set1 set2
+	1) "4"
+	2) "5"
+	127.0.0.1:6379> sdiff set2 set1
+	1) "b"
+	2) "a"
+	127.0.0.1:6379> sunion set2 set1
+	1) "5"
+	2) "2"
+	3) "1"
+	4) "3"
+	5) "a"
+	6) "b"
+	7) "4"
+	127.0.0.1:6379> sinter set2 set1
+	1) "2"
+	2) "1"
+	3) "3"
+
+4 hash
+hset/hget/hmset/hgetall/hdel
+	hset key field value
+
+	127.0.0.1:6379> hset user id 11
+	(integer) 1
+	127.0.0.1:6379> hget user id
+	"11"
+	127.0.0.1:6379> hmset user name z2 id 11 age 22
+	OK
+	127.0.0.1:6379> hgetall user
+	1) "id"
+	2) "11"
+	3) "name"
+	4) "z2"
+	5) "age"
+	6) "22"
+hlen
+hexists key field 是否存在某字段
+hkeys/kvals
+	127.0.0.1:6379> hkeys user
+	1) "id"
+	2) "name"
+	3) "age"
+	127.0.0.1:6379> hvals user
+	1) "11"
+	2) "z2"
+	3) "22"
+
+hincrby/hincrbyfloat
+hincrby key field num	
+hsetnx
+
+5.Zset (sorted set)
+zadd/zrange
+	127.0.0.1:6379> zadd zset1 80 v1 90 v2 100 v3
+	(integer) 3
+	127.0.0.1:6379> zrange zset1 0 -1
+	1) "v1"
+	2) "v2"
+	3) "v3"
+	127.0.0.1:6379> zrange zset1 0 -1 withscores
+	1) "v1"
+	2) "80"
+	3) "v2"
+	4) "90"
+	5) "v3"
+	6) "100"
+zrangebyscore key min max
+	127.0.0.1:6379> zrangebyscore zset1 0 299
+	1) "v1"
+	2) "v2"
+	3) "v3"
+zrangebyscore key min (max        (不包含
+	127.0.0.1:6379> zrangebyscore zset1 0 (100
+	1) "v1"
+	2) "v2"	
+zrem key field  删除
+zcard key	    field个数
+zcount zset1 60 80    显示score在60到80之间 
+zrank zset1 v3      结果2
+zscore zset1 v3      结果100
+zrevrank zset1 v3    反转 结果0
+zrerange zset1 0 -1
+
+zrevrangebyscore key max min
