@@ -1,0 +1,81 @@
+1xml 局部遍历
+BeautifulSoup 基于HTML DOM
+
+# soup = BeautifulSoup(text,'lxml')
+soup = BeautifulSoup(open('test.html',encoding='utf-8'),'lxml')
+# print(soup.prettify())
+
+#获取所有tr标签
+# trs = soup.find_all('tr')
+# for tr in trs:
+#     print(tr)
+#     print('========================')
+
+# 获取第2个tr标签
+# BeautifulSoup不像xpath，直接tr[2],而需要通过列表方式
+# trs = soup.find_all('tr',limit=2)
+# print(trs[1])
+
+#所有class是even
+# # trs = soup.find_all('tr',class_='even')
+# trs = soup.find_all('tr',attrs={'class':'even'})
+# for tr in trs:
+#     print(tr)
+
+# id=test class=test的a标签
+# aitem = soup.find_all('a',attrs={'id':'test','class':'test'})
+# aitem = soup.find_all('a',id='test',class_='test')
+# for item in aitem:
+#     print(item)
+
+# 获取所有a标签的href属性值
+# aitem = soup.find_all('a')
+# for a in aitem:
+#     print(a)
+#     #两种方式获得
+#     # href = a['href']
+#     href = a.attrs['href']
+#     print(href)
+
+# 获取所有职位的纯文本
+trs = soup.find_all('tr')[1:]
+for tr in trs:
+    # title = tr.find_all('a')[0]
+    # tds = tr.find_all('td')
+    # category = tds[1]
+    # print(title.string)
+    # print(category.string)
+    # 第2种方式
+    infos = list(tr.stripped_strings)
+    print(infos)
+	
+	
+总结
+find_all('',limit=,class_=,id=)
+find_all('',attrs={'class':,'id':})
+
+string      标签下的字符串 
+strings		标签下的所有字符串  生成器
+stripped_strings 标签下的所有字符串，去掉所有空格  生成器
+get_text 	标签下的所有字符串,不是列表形式
+
+find_all()也是模糊匹配
+select()方法css定位元素
+
+select('a') 标签
+select('.sister') 类
+select('#sister') id
+select('.box > p')  box类下的p标签 
+select('.box p')box类下的所有p标签
+select('input[name='']')
+select('div.sister')  与 select('div .sister') 不同
+
+BeautifulSoup常用对象
+1、Tag
+
+2.NavigatableString
+
+3.BeautifulSoup   继承Tag
+
+4.Comment
+
