@@ -33,6 +33,7 @@ commit 530feb89710d20597fcdb710ed2079652a6a9eb4
 Author: lunarji <2415970940@qq.com>
 Date:   Thu Jul 5 01:27:38 2018 +0800
 
+回滚操作
 HEAD指向的版本就是当前版本，因此，Git允许我们在版本的历史之间穿梭，
 使用命令git reset --hard commit_id
 commit_id 是HEAD^ (上个版本HEAD~1)或者HEAD^^(上上个版本HEAD~2)或者530feb89（类似）
@@ -40,17 +41,22 @@ commit_id 是HEAD^ (上个版本HEAD~1)或者HEAD^^(上上个版本HEAD~2)或者
 要重返未来，用git reflog查看命令历史，以便确定要回到未来的哪个版本
 
 git reflog和git log区别
-git log 以往历史
+git log 以往历史 git log --pretty=online
 git reflog 删除未来的历史
 
 用git diff HEAD -- readme.txt命令可以查看工作区和版本库里面最新版本的区别
 
-5. git checkout -- readme.txt就是让这个文件回到最近一次git commit或git add时的状态。
+5.撤销操作 
+git checkout -- readme.txt就是让这个文件回到最近一次git commit或git add时的状态。
 git add用命令git reset HEAD <file>可以把暂存区的修改撤销掉，即取消git add命令操作
 
 从git add 退回到 staged
 git reset HEAD <file>
 git checkout -- <file>
+
+文件回滚  版本回滚
+git reset HEAD <file>   git checkout -- <file>
+git reset --hard HEAD^ 
 
 6.删除文件
 git rm <file>
@@ -140,3 +146,37 @@ git branch -D <name>强行删除
     命令git tag可以查看所有标签。
 	git show <tagname>查看标签信息
 	标签总是和某个commit挂钩
+
+	
+August 3rd：
+补充：
+1.本地到远程创建仓库  远程仓库要有目录仓库
+	mkdir test
+	cd test
+	git init
+	echo "test git" >> readme
+	git add .
+	git commit -m "first commit"
+	git remote add origin https://github.com/2415970940/test.git
+	git push -u origin master
+2.当本地仓库和远程仓库发生冲突(文件内部)
+	先将远程仓储git pull	
+	修改本地冲突文件，然后add commit push
+当本地仓库和远程仓库发生冲突(文件数量不同)
+先git pull，然后 git push
+	
+3.本地仓库创建分支，远程仓库也创建
+  git checkout -b dev
+  git push --set-upstream origin dev
+  
+4.git push 只提交当前分支
+
+5.当master和dev冲突，修改冲突文件，add commit push
+
+6，git stash 对add和commit的有效
+   git stash pop命令恢复之前缓存的工作目录
+   git stash pop缓存堆栈中的第一个stash删除，并将对应修改应用到当前的工作目录下。
+   git stash apply命令，将缓存堆栈中的stash多次应用到工作目录中，但并不删除stash拷贝
+   git stash list 查看stash
+		用git stash apply stash@{0}调用
+	git stash drop stash_name 删除 

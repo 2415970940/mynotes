@@ -16,14 +16,17 @@
 	type key  key类型
 	INCR  DECR  INCRBY  DECRBY
 
-1.string
+1.string   缓存 计数器  分布式锁
 set/get/del/append/strlen
+incr/decr/incrby/decrby
+incrbyfloat 浮点增 没有减命令
 
 GETRANGE k1 start end
 GETRANGE k1  0 3        
 GETRANGE k1  0 -1 		显示所有
 
 SETRANG k1 start string     k1从start位置用string字符串替换
+start 从0开始
 
 setex k1 10 4       设置k1等于4，存活10s （set with expire）
 
@@ -34,27 +37,35 @@ mset mget msetnx
 	mget k1 k2 k3
 	msetnx k1 v1 k2 v2 k3 v3
 	k1,k2存在，然后msetnx k2 v2 k3 v3，无法建立k3
+	
+n次get 时间 = n次网络时间+n次命令时间
+mget 时间 = 1次网络时间+n次命令时间
 
 GETSET key value
-
 将给定 key 的值设为 value ，并返回 key 的旧值(old value)。
-
 当 key 存在但不是字符串类型时，返回一个错误。
 
 
+append key value  将value追加到旧的value后
 
-2.list
+strlen key       注意key为中文
+
+时间复杂度 大多数是O(1)
+mget mset  O(n)
+
+
+2.list  有序 重复 
 lpush list1 1 2 3 4 5
 rpush list2 1 2 3 4 5
-lrange list1 0 -1
+lrange list1 0 -1    O(n)  end_index包含
 lpop list1
 rpop list1
-lindex list1 2
+lindex list1 2     O(n)
 llen list1
-lrem key 删除n个value
+lrem key 删除n个value    O(n)
 	lrem list3 2 3     删除list3中2个3
 	
-ltrim key index index   截取指定范围的然后赋值给key
+ltrim key start_index end_index   截取指定范围的然后赋值给key
 	注意截取的字段跟lpush，rpush有关
 		127.0.0.1:6379> lpush list1 1 2 3 4 5 6 7
 		(integer) 7
@@ -89,7 +100,17 @@ rpoplpush 源列表 目的列表
 		5) "4"
 
 lset key index value   替换k中index索引的值
-linsert key before/after value1 value2
+linsert key before/after value1 value2       O(n)
+
+blpop key timeout   lpop阻塞，timeout阻塞超时时间，timeout=0永远不阻塞 
+brpop key timeout 
+
+TIPS
+1.LPUSH + LPOP = STACK
+2.LPUSH + RPOP = QUEUE
+3.LPUSH + LTRIM = CAPPED COLLECION
+4.LPUSH + BRPOP = MESSAGE QUEUE
+
 
 3.set
 sadd / smembers /sismember
@@ -147,7 +168,7 @@ sunion  并集
 
 4 hash
 hset/hget/hmset/hgetall/hdel
-	hset key field value
+	hset key field value   field不能一样value可以一样
 
 	127.0.0.1:6379> hset user id 11
 	(integer) 1
@@ -162,8 +183,9 @@ hset/hget/hmset/hgetall/hdel
 	4) "z2"
 	5) "age"
 	6) "22"
-hlen
+hlen key    field数量
 hexists key field 是否存在某字段
+
 hkeys/kvals
 	127.0.0.1:6379> hkeys user
 	1) "id"
@@ -177,6 +199,13 @@ hkeys/kvals
 hincrby/hincrbyfloat
 hincrby key field num	
 hsetnx
+时间复杂度
+hmset hmget hgetall O(n)
+
+比较
+string  直观，占用内存较大，key较分散 
+hash	直观，节省空间，编程较复杂，ttl不好控制，可压缩
+
 
 5.Zset (sorted set)
 zadd/zrange

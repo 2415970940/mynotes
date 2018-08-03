@@ -1,0 +1,7 @@
+如果你没有commit你的本地修改（甚至于你都没有通过git add追踪过这些文件，当他们被删除，git reset --hard对于这些没有被commit过也没有git add过的修改来说就是具有毁灭性的，destructive！！）
+
+but，如果你幸运的是曾经通过git add命令追踪过这些文件，只是没有commit它们而已！那么试试git fsck --lost-found这个命令吧！然后你就可以在本地项目文件中路径为.git/lost-found/other（楼主亲自试验就是这个路径）中找到它们！！并且呢，这里面包含了所有的没有被commit（指定到某次commit）的文件，甚至可能还包括你每次git add的版本（version一词实在不知道在这里怎么翻译，姑且就认为是版本吧）！
+
+使用git fsck --lost-found这个命令，通过.git/lost-found/other这个路径，你可以恢复任何你git add过的文件！再通过find .git/objects -type f | xargs ls -lt | sed 60q这个命令，你就可以找到最近被你add到本地仓库的60个文件，综上所述，希望对你有所帮助！
+
+当然咯，也就是but的but，不幸中的不幸，如果你没有git add过的文件呢，被git reset --hard这个命令整过之后呢，就如你自己执行delete命令一样，再也尸骨难寻啦（也就是真的毛都不剩了！！默哀三秒）！！！！
