@@ -1,0 +1,86 @@
+源码是怎么实现的
+org.apache.spark.deploy.master.Master收到application发送的RegisterApplication(description, driver)消息后，开始执行注册逻辑:
+
+case RegisterApplication(description, driver) => {
+      // TODO Prevent repeated registrations from some driver
+      //standby master不调度
+
+      if (state == RecoveryState.STANDBY) {
+        // ignore, don't send response
+      } else {
+        logInfo("Registering app " + description.name)
+        val app = createApplication(description, driver)
+        //注册app，即将其加入到waitingApps中
+        registerApplication(app)
+        logInfo("Registered app " + description.name + " with ID " + app.id)
+        //将app加入持久化引擎，主要是为了故障恢复
+        persistenceEngine.addApplication(app)
+        //向driver发送RegisteredApplication消息表明master已经注册了这个app
+        driver.send(RegisteredApplication(app.id, self))
+        //为waitingApps中的app调度资源
+        schedule()
+      }
+    }
+
+
+
+/**
+   * Schedule the currently available resources among waiting apps. This method will be called
+   * every time a new app joins or resource availability changes.
+   */
+  private def schedule(): Unit = {
+    if (state != RecoveryState.ALIVE) { return }
+    // Drivers take strict precedence over executors
+    //为了避免每次schedule，总是在相同的worker上分配资源，所有这里打乱worker顺序。
+
+    val shuffledWorkers = Random.shuffle(workers) // Randomization helps balance drivers
+    //下面这个for循环是为driver调度资源，因为这里只将application的调度，所以driver的调度不说了。
+
+    for (worker <- shuffledWorkers if worker.state == WorkerState.ALIVE) {
+      for (driver <- waitingDrivers) {
+        if (worker.memoryFree >= driver.desc.mem && worker.coresFree >= driver.desc.cores) {
+          launchDriver(worker, driver)
+          waitingDrivers -= driver
+        }
+      }
+    }
+
+    //为application调度资源
+    startExecutorsOnWorkers()
+  }
+
+
+
+  /**
+   * Schedule and launch executors on workers
+   */
+  private def startExecutorsOnWorkers(): Unit = {
+    // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
+    // in the queue, then the second app, etc.
+    // 为waitingApps中的app调度资源，app.coresLeft是app还有多少core没有分配
+
+    for (app <- waitingApps if app.coresLeft > 0) {
+      val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
+      // Filter out workers that don't have enough resources to launch an executor
+      // 筛选出状态为ALIVE并且这个worker剩余内存，剩余core都大于等于app的要求，然后按照coresFree降序排列
+
+      val usableWorkers = workers.toArray.filter(_.state == WorkerState.ALIVE)
+        .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
+          worker.coresFree >= coresPerExecutor.getOrElse(1))
+        .sortBy(_.coresFree).reverse
+      //在usableWorkers上为app分配Executor
+      val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
+
+      // Now that we've decided how many cores to allocate on each worker, let's allocate them
+      // 在worker上启动Executor进程
+
+      for (pos <- 0 until usableWorkers.length if assignedCores(pos) > 0) {
+        allocateWorkerResourceToExecutors(
+          app, assignedCores(pos), coresPerExecutor, usableWorkers(pos))
+      }
+    }
+  }
+
+
+
+  

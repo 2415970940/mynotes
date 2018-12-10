@@ -1,0 +1,17 @@
+HIVE
+1.创建数据库
+create database hive_db;    (默认位置/user/hive/warehouse)
+create database hive_db location "/user/hive/warehouse/hive_db.db";
+2.查询数据库
+desc database hive_db;
+desc database extended hive_db;
+3.改
+alter database hive_db set dbproperties("ctime"="2020-06-22");
+4.删除
+drop  database hive_db;
+drop  database hive_db cascade;(有表删除)
+5.创建表
+内部表
+create table student(id int);
+create table student like stu;   	只有结构没有数据
+create table student as select * from stu;

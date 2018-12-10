@@ -1,0 +1,18 @@
+首先定义一个正则表达式，使用String类的r方法 
+此时返回的类型是scala.util.mathching.Regex类的对象
+val pattern="[a-z]+".r
+
+我们再定义一个字符串
+val str= "hello 123 world  ,fuck you taibei "
+
+获取一个字符串后，匹配正则表达式的部分，使用findAllIn会获取到一个Iterator，迭代器；然后可以去遍历各个匹配正则的部分，再进行处理
+for(matchString <- pattern.findAllIn(str))println(matchString)
+
+使用findFirstIn，可以获取第一个正则匹配的部分
+pattern.findFirstIn(str)
+
+使用replaceAllIn,可以替换所有匹配的部分
+pattern.replaceAllIn(str,"replacement")
+
+使用replaceFirstIn，可以将第一个匹配的部分替换掉
+pattern.replaceFirstIn(str,"replacement")

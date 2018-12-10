@@ -1,0 +1,53 @@
+重写field的提前定义
+默认情况下，如果父类中的构造函数代码，用到了会被子类重写的filed； 那么子类的filed将会出错
+
+子类的构造函数调用父类的构造函数
+父类的构造函数初始化field（结果正确）
+子类的构造函数使用field执行其他构造函数，但是此刻该field的getter方法被重写，返回0
+子类的构造函数再执行，重写field
+但是此时子类从父类继承的代码，已经出现了错误了
+class Student{
+val classNumber：Int=10
+val classScores：Array[Int](classNumber)
+}
+class PEStudent extends Student{
+override val classNumber[Int]= 3
+}
+
+本来我们期望的是，PEFStudent可以从Student继承一个长度为10 的clasScores数组，结果却是一个长度为0 的classScores的数组 
+此时只能使用Scala对象继承的一个高级特性：提前定义，在父类的构造函数执行之前，先执行子类的构造函数中的某些代码
+
+class PEStudent extends Student{
+overrride val classNumber:Int = 3
+}with Student
+
+scala 的继承层级，我们写的所有的scala trait和class，都是默认继承一些根类的，有一些基础的方法 
+scala中，最顶端的两个trait是Nothing和Null trait唯一的对象就是null 
+其次是继承了Nothing trait的Any类 
+接着是Anyval trait和AnyRef类，都继承自Any类
+
+Any类是个比较重要的类，其中定义了isInstanceof和asInstanceOf等方法，以及equals／hashCode等对象的基本方法
+Any类，有点像java中的Object类
+AnyRef类，增加了一些多线程的方法，比如wait／notify／notifyall／synchronized等
+对象相等性 
+在scala中，如何判断两个引用变量是否指向同一个对象实例
+
+Anyref的eq方法用于检查两个对象是否指向同一个对象实例
+Anyref的equals方法默认调用eq的方法实现，也就是说，在默认情况下，判断两个变量是否相等，要求必须指向同一个对象实例
+通常情况下，自己也可以重新写equals方法，根据类的fields来判定是否相等
+此外，定义equals方法时，也最好使用同样的fields，重写个 hashCode 方法
+如果只是想要简单的通过是否指向同个对象实例，判定变量是否得当，那么直接用操作符 == 即可，默认判断null，然后调用equals方法
+
+class Product(val name:String,val price :Double){
+final override def equals (other:Any)={
+val that = other.asInstanceOf[Product]
+if(that== null)false
+else name == that.name&& price == that.hashCode
+}
+
+final override def hashCode=13*name.hashCode+17*price.hashCode
+--------------------- 
+作者：我是李寻欢 
+来源：CSDN 
+原文：https://blog.csdn.net/qq_39532946/article/details/77751791 
+版权声明：本文为博主原创文章，转载请附上博文链接！

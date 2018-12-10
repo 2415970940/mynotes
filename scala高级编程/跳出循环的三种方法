@@ -1,0 +1,53 @@
+scaldoc https://www.scala-lang.org/api/current/index.html
+
+1.基于boolean类型的控制变量
+
+var flag=true
+var res=0
+
+while(flag){
+	res+=1
+	if(res==5){
+		flag=false;
+	}
+}
+
+
+for(i <- 0 until 10 if flag){
+	res+=i
+	if(i==4) flag=false
+}
+
+2.使用嵌套函数以及return
+
+def outer()={
+	def inner(){
+		for(i<-0 until 10){
+			if(i==5){
+				return
+			}
+		}
+	}
+	inner
+}
+
+
+
+
+3.使用Breaks类的break方法
+
+import scala.util.control.Breaks._
+
+breakable{
+	for(i<-0 until 10){
+			if(i==5){
+				break
+			}
+		}
+}
+
+
+
+
+
+

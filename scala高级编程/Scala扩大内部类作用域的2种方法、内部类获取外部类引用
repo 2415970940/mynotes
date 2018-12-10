@@ -1,0 +1,70 @@
+一：内部类的作用对象：外部类对象
+import scala.collection.mutable.ArrayBuffer
+
+
+class Class {
+  class Student(val name: String) 
+  val students = new ArrayBuffer[Student]
+  def register(name: String) =  {
+    new Student(name)
+  }
+}
+
+val c1 = new Class
+val leo = c1.register("leo")
+c1.students += leo
+
+val c2 = new Class
+val jack = c2.register("jack")
+c1.students += jack
+
+二：扩大内部类作用域：伴生对象
+object Class {
+  class Student(val name: String)
+}
+
+class Class {
+  val students = new ArrayBuffer[Class.Student]
+  def register(name: String) = {
+    new Class.Student(name)
+  }
+}
+
+val c1 = new Class
+val leo = c1.register("leo")
+c1.students += leo
+
+val c2 = new Class
+val jack = c2.register("jack")
+c1.students += jack
+
+三：扩大内部类作用域：类型投影
+class Class {
+  class Student(val name: String) 
+  val students = new ArrayBuffer[Class#Student]
+  def register(name: String) =  {
+    new Student(name)
+  }
+}
+
+val c1 = new Class
+val leo = c1.register("leo")
+c1.students += leo
+
+val c2 = new Class
+val jack = c2.register("jack")
+c1.students += jack
+
+四：内部类获取外部类的引用
+class Class(val name: String) { outer =>
+  class Student(val name: String) {
+    def introduceMyself = "Hello, I'm " + name + ", I'm very happy to join class " + outer.name
+  }
+  def register(name: String) =  {
+    new Student(name)
+  }
+}
+
+val c1 = new Class("c1")
+val leo = c1.register("leo")
+leo.introduceMyself

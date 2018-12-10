@@ -1,0 +1,56 @@
+scala中遍历文件中的每一行必须导入scala.io.Source类：import scala.io.Source
+
+使用Source.getLines返回的迭代器(只能调用一次，再次调用会清空)
+val source = Source.fromFile("E://a.txt","UTF-8")
+ val lines=source.getLines
+ for(line <- lines )println(line)
+
+将Source.getLines返回的迭代器转换成字数组
+ val source = Source.fromFile("E://a.txt","UTF-8")
+ val lines=source.getLines.toArray
+ for（line <- lines ）println(line)
+
+调用Source.makString，返回文本中的所有内容
+val source = Source.fromFile("E://a.txt","UTF-8")
+val lines=source.mkString
+
+使用Source对象之后，使用Source.close方法关闭IO流
+
+遍历文件中的每一个字符
+val source = Source.fromFile("E://a.txt","UTF-8"
+for(i <- source)print(i)
+
+从URL以及字符串中读取字符
+val html=Source.fromFile("http://www.baidu.com","UTF-8")
+html.mkString
+
+结合java的IO流，写文件(spark 中大量运用了java的多线程，spark是Scala和java共同编写而成，scala必须依赖于java的IO流读写文件)
+import 
+val file=new File("E://a.txt")
+val bytes=new Array[Bytes](file.length.toInt)
+val fis=new FileInputStream(file)
+fis.read(bytes)
+fis.lose()
+
+val pw=new PrintWriter("E://a.txt")
+pw.println("Hello world")
+pw.close()
+
+递归遍历子目录
+def getSubdir(dir:file):Iterator[file]={val childDir=dir.listFiles.filter(_.isDirectory)
+chilDirs.toIterator ++ childDirs.toIterator.flatMap(dubdirs _)
+}
+val iterator=subdirs(new file("E://a.txt"))
+for(a <- iterator)println(a)
+
+序列化和反序列化
+@SerialVersionUID(42L) class Person(val name:String)extends Serializabl
+val leo = new Person("leo")
+
+import java.io._
+val oos=new ObjectOutputStream (new FileOutputStream("e://a.txt"))
+oos.writeObject(leo)
+oos.close()
+val ois=new ObjectInputStean(new FileInputStream("e://b.txt"))
+val res=ois.readObject().asInstanceOf(Person)
+res.name

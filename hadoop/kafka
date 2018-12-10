@@ -1,0 +1,19 @@
+nohup /opt/module/kafka_2.11/bin/kafka-server-start.sh  /opt/module/kafka_2.11/config/server.properties &
+
+nohup /opt/module/kafka/bin/kafka-server-start.sh /opt/module/kafka/config/server.properties > /dev/null 2>&1 &
+
+bin/kafka-topics.sh --zookeeper hadoop132:2181 --create --replication-factor 3 --partitions 3 --topic test2
+
+
+
+bin/kafka-console-producer.sh --broker-list hadoop132:9092,hadoop133:9092,hadoop134:9092 --topic test2
+
+bin/kafka-console-consumer.sh --zookeeper hadoop132:2181 --from-beginning --topic test2
+
+
+[atguigu@hadoop104 kafka]$ bin/kafka-console-producer.sh --broker-list hadoop132:9092 --topic test2
+
+[atguigu@hadoop102 kafka]$ bin/kafka-console-consumer.sh --zookeeper hadoop132:2181 --topic test2 --consumer.config config/consumer.properties
+
+
+bin/zookeeper-shell.sh hadoop132:2181 <<< "get /brokers/ids/0"

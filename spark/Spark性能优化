@@ -1,0 +1,178 @@
+Spark性能优化
+
+性能瓶颈，CPU,内存或者带宽
+1.诊断内核消耗
+	一.首先程序在运行的时候 内存都花费在那里呢？
+	1.每个java对象，都有一个对象头，会占用16个字符。主要是包括了一些对象的元信息，比如执指向他的类指针。如果一个对象本身很小，不如就包括了一个int类型的field,那么它的对象头实际上比对象自己还要大。 
+	2.java String 对象，会比它的内部数据要多出40个字节。因为它内部使用char数组来保存内部的字符序列的，并且还得保存诸如数组长度之类的信息。而且因为String 使用的是UTF-16的编码，所以每个字符都会占用2个字符。比如，包含10个字符的String.会占用60个字符。 
+	3.java 中的集合类型，比如hashMap和linkedList 内部使用的是链表的数据结构，所以对链表中的每一个数据，都使用Entry 对象来包装，Entry对象来包装。Entry对象不光有对象头，还有指向下一个Entry的指针。通常占用8个字节。 
+	4.元素类型为原始数据类型（比如int的集合），内部通常会使用原始数据类型的包装类型，比如Integer,来存储元素。
+
+	二.如何判断自己的程序消耗了多少内存
+	1.首先，自己设置RDD的并行度，有两种方式： 
+	（1）.在parallelize(),testFile()等方法中传入第二个参数，设置RDD的task/partition的数量 
+	（2）用sparkConf.set()方法，设置一个参数，spark.default.parallelism.可以统一设置这个application所有的RDD的paratition数量。 
+	2.其次，在程序中将RDD的cache到内存中，调用RDD.cache()方法即可。 
+	3.最后观察Driver的log的，你会发现类似于“INFO BlockManagerMasterActor.Added rdd_0_1 in memmory on mbk.local:50311 (size:717.5KB,free 332.3MB)”日志信息。这个就显示了每个partition占用了多少字符。 
+	4.将这个内存信息乘以partition的数量，即可得出RDD的内存占用量。
+
+
+
+
+2.高性能序列化类库
+	在任何分布式系统里面序列化都是扮演一个很重要的角色。如果使用序列化的技术，在执行序列化的时候很慢，或者序列化之后数据量还是很大。
+	那么会让分布式应用程序的性能下降很多。所以进行spark性能优化的第一步。就是进行序列化的性能优化。
+
+	spark自身默认在一些地方会进行序列化，比如Shuffle 。还有就是如果我们的算子函数使用到了分外部的数据（比如java的内村类型，或者自定义类型）那么也需要让其可以序列化。
+
+	而spark自身对于序列化的便捷性和性能做了一些的取舍和权衡。默认，spark倾向于序列化的便捷性，使用了java自身提供的序列化机制–基于ObjectInputStream
+	和ObjectOutputStream的序列化机制因为这种机制是Java 原生提供的很方便使用。
+
+	但是java 原生的序列化机制性能并不高。序列化速度相对较慢。而且序列化之后还是比较占用内存的。因此如果你的spark应用程序对内存很敏感那么java 默认的序列化机制不是最好的选择。
+
+	spark 提供了两种序列化机制，它默认使用了第一种 
+	1. java 序列化机制：默认情况下Spark 使用java自身的ObjectInputStream和ObjectOutputStream机制机型java对象的序列化。
+	只要你的类实现了Serializable接口，那么都是可以序列化的，而且java的序列化机制是提供了自定义序列化支持的，
+	只要你实现Externalizable接口即可实现自己的更高的性能的序列化算法。java的序列化机制的速度比较慢而且序列化后数据占用的空间内存比较大。 
+	2. Kryo序列化机制：spark也支持使用kryo类库来进行序列化。kryo序列化机制比java序列化机制更快。而且序列化后占用的空间更小，
+	通常比java序列化的数据占用的空间要小上10倍。kryo序列化机制之所以不是默认序列化机制的原因是有些类虽然实现了Seriralizable 接口但是它也不一定能够进行序列化；
+	此外如果要得到最佳的性能。kryo还要求你在spark应用中对所有需要序列化的类都进行注册。
+
+	如果要使用kryo序列化机制，首先要sparkconf设置一个参数使用new SparkConf().set(“spark.serializer”,”org.apache.spark.serializer.KryoSerializer”)即可，
+	即将spark的序列化设置为KryoSerializer这样Spark在内部的一些操作比如shuffle进行序列化的时候就会使用kryo类库进行高兴能，快速，更低占用量的序列化了。
+
+	使用kryo时，它要求是需要序列化的类，是要预先进行注册的，以获得最佳–如果不注册的话。那么kryo必须时刻保存类型的全限定明，反而占用不少内存。
+	spark默认是对Scala中常用的类型自动注册了kryo的，都在AllScalaRegistry。类中
+
+	但是比如自己的算子中，使用了外部的自定义类型的对象。那么还是需要将其进行注册。 
+
+	val conf=new SparkConf().setAppName("").setMaster("")
+	conf.registerKroClasses(Array(classOf[Counter]))
+	val sc=new SparkContext(conf)
+
+
+	SparkConf conf=new SparkConf().setAppName("").setMaster("")
+	conf.registerKroClasses(Counter.class)
+	JavaSparkContext sc=new JavaSparkContext(conf)
+
+
+	优化kryo类库的使用 
+	（1）.优化缓存大小 
+	如果注册的要序列化的自定义的类型本身很大，比如超过100个field那么会导致这个序列化对象过大此时需要对kryo本身进行优化。
+	因为kryo的内部的缓存可能不够存放这么大的class对象此时需要调用SparkConf.set()方法，设置spark.kryoserializer.buffer.mb参数的值。将其调大。 
+	默认情况下他的值是2 就是说最大2M的缓存对象然后进行序列化。可以在必要的时候将其调大比如设置为10. 
+	预先自定义类型。 
+	虽然不注册自定义类型，kryo类库也能正常的工作，但是那样的话对于它要序列化的每个对象都会保存一份他的全限定类名，此时反而会消耗大量内存，因此通常都建议预先注册要序列化的自定义的类.
+
+	使用场景，算子函数使用到了外部大数据的情况
+
+
+3.优化数据结构
+	要较少内存的消耗，除了使用高效的序列化库之外还有一个很重要的事情，就是优化数据结构。从而避免java语法特性中所导致的额外的内存开销，比如基于指针的java的数据结构以及包装类型。 
+	那么如何优化数据结构呢 
+	1优先使用数组以及字符串，而不是集合类。也就是说优先用array，而不是ArrarList，LinkedList,HashMap等集合。
+
+	比如，有个List<Integer>list =new ArrayList<>();将其替换为int[] arr=new Int[];
+	这样的话array即比List减少了额外信息存储开销，还能使用原始数据类型（int）来存储数据。比List中用Integer这种包装类型存储数据，要节省内存的多。 
+	还比如通常企业级应用中做法是对于hashMap 和List 这种数据统一用String 拼接成特殊格式的字符串.
+
+	2 避免使用多层嵌套的对象结构，可以使用json 替代存储。
+
+	3对于有些能避免的场景，尽量使用int 代替String ，因为String虽然比Map List 高效多了但是还是有很多的额外内存消耗
+
+	4 在spark应用中id不要使用常用的uuid，因为没有办法转成int就用自增的int 类型的id 即可。
+
+(4)对多次使用的RDD进行持久化或者checkpoint
+
+
+	在这里可以很清楚的看到对一个RDD前后进行了两次操作。在第一次的时候先计算出一个RDD然后计算出第二个RDD继续往后计算。 
+	但是对第二次RDD操作在执行的时候，由于RDD数据在执行完成之后很有可能会被立即丢弃那么这个时候就需要重新计算第一个和第二个RDD了
+
+	我们可以把第二个RDD的计算结果进行持久化放入到BlockManager。
+
+	这个时候第二次计算这个RDD的时候直接从BlockManager中取数据不需要在在一次计算第一和第二次RDD。 
+	但是有可能存储在BlockManager中的数据会丢失掉那么在第二次计算这个RDD的时候发现没有数据会尝试取检索checkpoint的值如果读取失败则需要重新计算。 
+	所以针对这种情况那么在第一次计算RDD的时候将数据存入到checkpoint。哪怕数据丢失了也可以在checkpoint 中找到
+
+（5）使用序列化的持久级别
+
+	除了对多次使用的RDD进行持久化操作之外,还可以进一步优化其性能。因为很有可能,RDD的数据是持
+	久化到内存,或者磁盘中的。那么,此时,如果内存大小不是特别充足,完全可以使用序列化的持久化级
+	别,比如MEMORY_ONLY_SER、MEMORY_AND_DISK_SER等。使用RDD.persist(StorageLevel.MEMORY_ONLY_SER)这样的语法即可。
+
+	这样的话,将数据序列化之后,再持久化,可以大大减小对内存的消耗。此外,数据量小了之后,如果要
+	写入磁盘,那么磁盘io性能消耗也比较小。
+
+	对RDD持久化序列化后,RDD的每个partition的数据,都是序列化为一个巨大的字节数组。这样,对于内
+	存的消耗就小的多了。但是唯一的缺点就是,获取RDD数据时,需要对其进行反序列化,会增大其性能开
+	销。
+
+	因此,对于序列化的持久化级别,还可以进一步优化,也就是说,使用Kyo序列化类库,这样,可以获得
+	更快的序列化速度,并且占用更小的内存空间。但是要记住,如果RDD的元素,是自定义类型的话,在
+	Kryo中提前注册自定义类型。
+
+6）JVM垃圾回收器调优
+
+	我们可以对垃圾回收进行监测，包括多久进行一次回收，以每次回收的耗费时间。只要在spark-submit脚本中添加一个配置即可。
+
+	--conf "spark.executor.extra.javaOptions=-verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamaps"
+	但是要记住这里虽然会打印java 虚拟机的垃圾回收的相关信息但是输出到了worker的日志上额不是driver 的日志上。
+
+	但是这种方式也是一种，其实完全可以通过SparkUI来观察每个stage的垃圾回收的情况
+
+	优化executor内存比例
+	对于垃圾回收来说，最重要的就是调节RDD缓存中占用的内存空间，与算子执行时创建的对象占用的内存空间的比例，默认情况下，spark使用每个executor 60%的内存空间来缓存RDD。那么在task执行期间创建的对象只有40%的空间来存存放。 
+	在这种情况下，很有可能因为你的内存空间不足，task创建的对象过大，那么一旦发现40%的内存空间不够用了，就会触发java虚拟机的垃圾回收操作。因此在极端的情况下垃圾回收可能会频繁的触发。 
+	在上述情况下 ，如果发现垃圾回收频繁的发生没那么就需要对这个比例进行优化。使用
+
+	conf.set("spark.storage.memoryFunction","0.5")即可，
+
+	可以将RDD缓存占用空间的比例降低从而给更多的task常见的对象进行使用 
+	因此对于RDD的持久化完全可以使用kyro序列化，加上降低其executor内存占比的方式，来减少其内存消耗，给task提供更多的内存，从而避免task的执行频繁的垃圾回收。
+
+	垃圾回收调优1
+	java堆空间被划分成了两块空间，一个是年轻代，一个是老年代。年轻代放的是短时间的存活的对象，老年代放的是长时间的存活对象。年轻代又被划分成了三块空间，Eden,Survivor1,Survivor2. 
+	首先Eden区域和Survivor1区域用于存放对象，Survivor2区域备用。创建的对象，首先放入Eden区域和Survivor1区域，如果Eden区域满了，那么就会触发一次Minor GC，进行年轻代的垃圾回收。Eden和Survivor1区域中存活的对象，会被移动到Survivor2区域中。然后Survivor1和Survivor2的角色调换。Survivor1变成了备用。 
+	如果一个对象，在年轻代，撑过了多次垃圾回收，都没有被回收掉，那么会被认为是长时间存活的，此时就会被移入老年代。此外，如果在将Eden和Survivor1中存活对象，尝试放入Survivor2中时，发现Survivor2放满了，那么会直接放入老年代。此时就出现了，超时间存活的对象，进入老年代的问题。 
+	如果老年代空间满了没那么就会触发full GC进行老年的垃圾回收操作。
+
+	垃圾回收调优2
+	Spark中垃圾回收调优的目标就是，只有真正长时间存活的对象，才能进入老年代，短时间存活的对象，对只能呆在年轻代。不能因为某个Survivor区域空间不够，在Mintor GC时，就进入了老年代。从而造成了短时间存活的对象，长期呆在老年代中占据了空间，而且full GC时要回收大量的短时间存活的对象，导致full GC速度缓慢。 
+	如果发现，在task执行期间，大量full gc 发生了 ，那么说明，年轻代的Survivor区域，给的空间不够大，此时可以执行一些操作来优化垃圾回收行为： 
+	1.包括降低spark.storage.memoryFraction的比例，给年轻代更多的空间，来存放短时间存活的对象； 
+	2.给Eden 区域分配更大的空间，使用-Xmm即可 ，通常建议给Eden 区域，预计大小的4/3; 
+	3.如果使用的是HDFS文件，那么很好估计Eden区域大小，如果executor有4个task.然后每个hdfs压缩块 解压缩后大小是3倍，此外每个hdfs块的大小是64m，那么Eden区域的预计大小就是：4*3*64MB. 
+
+
+7)提高并行度
+
+	在实际开发中，spark集群的资源不一定会被充分的利用到，所以尽量设置合理的并行度来充分的利用集群的资源。才能充分提高spark应用程序的性能。 
+	spark会自动设置以文件作为输入源的RDD的并行度，依据其大小，比如hdfs就会给每一个block创建一个partition,也依据这个设置并行度。对于reduceByKey等会发生的shuffle的操作就使用并行度最大的父RDD的并行度即可。 
+	可以动手使用textFile（）,parallelize（）等方法的第二个参数来设置并行度；也可以使用spark.default.partition参数，来设置统一的并行度，spark官方的推荐是给每个集群中的cpu core设置2-3个task. 
+	比如说spark-submit 设置了executor数量是10个，每个executor要求分配两个core，那么application总共会有20个core此时可以new sparkconf().set(“spark.default.parallelism”,”60”)来设置合理的并行度从而充分利用资源
+
+	下面举个例子
+	在spark-submit中配置了2个executor每个executor有5个cpu。new SparkConf().set(“spark.default.parallelism”,”5”) 这个参数一旦设置了就是说所有的RDD的partition都被设置成了5个也就是说每个RDD的数据，
+	会被拆为5份，那么针对RDD的partition，一个partition会启动一个task来进行计算。所以针对于所有的算子操作。都只会创建5个task,在集群中运行. 
+	所以在这个时候集群中有10个core但是被设置成了5个task。那么相当于集群中有5个cpu core是空闲的 资源被白白浪费了， 
+	其实最好的情况就是说，每个cpu都不空闲，一直在不断的运转着，那么这时候对集群的资源的使用率是最高的。
+
+	我们还不一定只设置成10个task让每个cpu 一个task 完全可以设置 20个到30个task。因为每个task的执行循序是不一样的那么刚好10个task可能某个task 很快就执行完了那么那个cpu 又空闲下来了资源又浪费了。所以spark 官方推荐设置集群cpu 的2-3倍的task。
+
+8)广播共享数据
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

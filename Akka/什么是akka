@@ -1,0 +1,69 @@
+可扩展的实时的会话处理
+我们相信编写正确的具有并发、容错以及可扩展特性的应用程序是非常困难的。大多数时候是因为我们使用了错误的工具和抽象的错误层次。Akka正是为了改变这一现状而诞生的。使用Actor模型，我们提升了抽象的层次，并且提供了一个更好的平台来构建正确的、并发的、以及可扩展的应用程序。为了容错，我们采用了电信行业已经使用的，用来构建具有自我恢复的应用程序、永远不宕机的系统时所采用的模型——“Let it crash”。Actors也提供了对用户透明的分布式的抽象以及确实可扩展和容错程序的基础。
+
+Akka是开源的，且使用Apache 2的lisense。
+
+可以从http://akka.io/downloads/下载akka的最新版本。
+
+请注意所有的代码实例都是编译之后的，如果你想得到源码，请看https://github.com/akka/akka/tree/v2.2.4/akka-docs/rst
+
+
+akka实现了很多优点
+Actors
+Actors可以给你：
+简单、高层次的并发和并行的抽象
+异步的、非阻塞的、高性能的事件驱动的编程模型
+非常轻量级的事件驱动的处理（每GB内存大约可以产生270万的actor）
+
+容错
+具有“Let it crash”语义的管理层次结构
+管理层次结构可以横跨多个JVM来提供真正的容错系统。
+容错系统具有自我恢复以及永不宕机的优秀特色
+
+位置透明
+akka中的一切都是为在一个分布式的环境中工作而设计的。actors之间的所有交互都是使用纯粹的信息传递并且所有的东西都是异步的。
+
+Transactors
+Transactors将actors和软件可交互内存（software transactional memory）结合起来，成为可交互actors。他使得你可以将原子信息流和自动的重试和回滚组合起来。
+
+scala和java api
+akka有scala和java的文档，分别是http://doc.akka.io/docs/akka/2.2.4/scala.html#scala-api、
+http://doc.akka.io/docs/akka/2.2.4/java.html#java-api
+
+可以两种方式使用akka
+作为一个类库：如果是web应用，将akka放到WEB-INF/lib下面或者将其作为一个正常的jar放到classpath里。
+作为一个微核：一个独立的kernal，你可以将你的应用放到这个kernal里面。
+
+
+创建Hello World工程
+使用IDEA,创建SBT工程，在build.sbt中添加akka依赖
+name := "My Project"
+ 
+version := "1.0"
+ 
+scalaVersion := "2.10.4"
+ 
+resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
+ 
+libraryDependencies +="com.typesafe.akka" %% "akka-actor" % "2.3.4"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

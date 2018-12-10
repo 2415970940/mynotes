@@ -36,6 +36,17 @@ mkdir -p /etc/docker
 vim /etc/docker/daemon.json
 	systemctl daemon-reload
 	systemctl restart docker
+	
+	
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": ["https://y868rr2t.mirror.aliyuncs.com"]
+}
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker	
+	
 			
 			
 4.常用命令

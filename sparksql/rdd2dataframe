@@ -1,0 +1,210 @@
+RDD TO DATAFRAME
+SparkSQL支持两种方式来将RDD转换为DataFrame。
+
+第一种方式，是使用反射来推断包含了特定数据类型的RDD的元数据。这种基于反射的方式，代码比较简洁，当你已经知道你的RDD的元数据时，是一种非常不错的方式。
+
+第二种方式，是通过编程接口来创建DataFrame，你可以在程序运行时动态构建一份元数据，然后将其应用到已经存在的RDD上。这种方式的代码比较冗长，但是如果在编写程序时，还不知道RDD的元数据，只有在程序运行时，才能动态得知其元数据，那么只能通过这种动态构建元数据的方式。
+
+
+文件students.txt中内容如下：
+
+1,leo,17
+2,marry,17
+3,jack,18
+4,tom,19
+1. 使用反射方式将RDD转换为DataFrame
+
+Java代码如下：
+JavaSparkContext->SQLContext->JavaRDD->map(line,student)->DataFrame rdd class->registerTempTable->
+sql->df.rdd->map (row student)->collect
+
+public class RDD2DataFrameReclection {
+	public static void main(String[] args) {
+		SparkConf conf = new SparkConf()
+					.setMaster("local")
+					.setAppName("RDD2DataFrameReflection");
+		JavaSparkContext sc = new JavaSparkContext(conf);
+		SQLContext sqlContext = new SQLContext(sc);
+		
+		JavaRDD<String> lines = sc.textFile("./data/students.txt");
+		JavaRDD<Student> students = lines.map(new Function<String, Student>() {
+ 
+			@Override
+			public Student call(String line) throws Exception {
+				String[] lineSplited = line.split(",");
+				Student stu = new Student();
+				stu.setId(Integer.valueOf(lineSplited[0].trim()));
+				stu.setName(lineSplited[1]);
+				stu.setAge(Integer.valueOf(lineSplited[2]));
+				
+				return stu;
+			}
+		});
+		
+		//使用反射方式将RDD转换为DataFrame
+		//将Student.class传入进入，其实就是用反射的方式来创建DataFrame
+		//因为Student.class本身就是反射的一个应用
+		//然后底层还得通过对Student Class进行反射，来获取其中的field
+		//这里要求，JavaBean必须实现Serializable接口，是可序列化的
+		DataFrame studentDF = sqlContext.createDataFrame(students, Student.class);
+	
+		//拿到了一个DataFrame之后，就可以将去注册为一个临时表，然后针对其中的数据执行SQL语句
+		studentDF.registerTempTable("students");
+		//针对students临时表执行SQL语句，查询年龄小于等于18岁的学生，就是teenager
+		DataFrame teenagerDF = sqlContext.sql("select * from students where age<=18");
+	
+		//将查询出来的DataFrame再次转换为RDD
+		JavaRDD<Row> teenagerRDD = teenagerDF.javaRDD();
+		
+		//将RDD中的数据进行映射，映射为student
+		JavaRDD<Student> teenagerStudentRDD = teenagerRDD.map(new Function<Row, Student>() {
+ 
+			@Override
+			public Student call(Row row) throws Exception {
+				//row中的数据顺序可以与期望的不同
+				Student stu = new Student();
+				stu.setAge(row.getInt(0));
+				stu.setId(row.getInt(1));
+				stu.setName(row.getString(2));
+				
+				return stu;
+			}
+		});
+		
+		//将数据collect回来，打印出来
+		List<Student> studentList = teenagerStudentRDD.collect();
+		for(Student stu : studentList)
+			System.out.println(stu);
+		
+	}
+}
+
+Scala代码如下：
+必须extends App 不能def main()
+
+object RDD2DataFrameReflection extends App {
+  
+  val conf = new SparkConf()
+      .setAppName("RDD2DataFrameReflection")
+      .setMaster("local")
+  val sc = new SparkContext(conf)
+  val sqlContext = new SQLContext(sc)
+  
+  //在scala中使用反射方式，进行RDD到DataFrame的转换，需要手动导入一个隐式转换
+  import sqlContext.implicits._
+  
+  case class Student(id:Int,name:String,age:Int)
+  
+  //这里其实就是一个普通的，元素为case class的RDD
+  //直接对它使用toDF()方法，即可转换为DataFrame
+  val studentDF = sc.textFile("./data/students.txt", 1)
+      .map { line => line.split(",") }
+      .map { arr => Student(arr(0).trim().toInt, arr(1), arr(2).trim().toInt) }
+      .toDF()
+     
+   studentDF.registerTempTable("students")
+   val teenagerDF = sqlContext.sql("select * from students where age<=18")
+   
+   val teenagerRDD = teenagerDF.rdd
+   
+   teenagerRDD.map { row => Student(row(0).toString().toInt,row(1).toString(),row(2).toString().toInt) }
+   .collect()
+   .foreach { stu => println(stu.id + ":" + stu.name + ":" + stu.age) }
+   
+   // 在scala中，对row的使用，比java中的row的使用，更加丰富
+   // 在scala中，可以用row的getAs()方法，获取指定列名的列
+   teenagerRDD.map { row => Student(row.getAs[Int]("id"),row.getAs[String]("name"),row.getAs[Int]("age")) }
+   .collect()
+   .foreach { stu => println(stu.id + ":" + stu.name + ":" + stu.age) }
+   
+    // 还可以通过row的getValuesMap()方法，获取指定几列的值，返回的是个map
+   val studentRDD = teenagerRDD.map { row => {
+     val map = row.getValuesMap[Any](Array("id","name","age"));
+     Student(map("id").toString().toInt,map("name").toString(),map("age").toString().toInt)
+   } 
+   }
+   studentRDD.collect().foreach { stu => println(stu.id + ":" + stu.name + ":" + stu.age) }
+ 
+}
+2. 以编程方式动态指定元数据，将RDD转换为DataFrame
+public class RDD2DataFrameProgramatically {
+	
+	public static void main(String[] args) {
+		//创建SparkConf、JavaSparkContext、SQLContext
+		SparkConf conf = new SparkConf()
+					.setMaster("local")
+					.setAppName("RDD2DataFrameProgramatically");
+		
+		JavaSparkContext sc = new JavaSparkContext(conf);
+		SQLContext sqlContext = new SQLContext(sc);
+		
+		//第一步，创建一个普通的RDD，但是，必须将其转换为RDD<Row>的这种格式
+		JavaRDD<String> lines = sc.textFile("./data/students.txt");
+		
+		JavaRDD<Row> studentRows = lines.map(new Function<String, Row>() {
+ 
+			@Override
+			public Row call(String line) throws Exception {
+				String[] lineSplited = line.split(",");
+				return RowFactory.create(Integer.valueOf(lineSplited[0])
+						,lineSplited[1],
+						Integer.valueOf(lineSplited[2]));
+			}
+		});
+		
+		//第二步，动态构造元数据
+		//比如说，id、name等，field的名称和类型，可能都是在程序运行过程中，动态从mysql db里
+		//或者配置文件中，加载出来的，是不固定的
+		//所以特别适合用这种编程的方式，来构造元数据
+		List<StructField> structFields = new ArrayList<StructField>();
+		structFields.add(DataTypes.createStructField("id", DataTypes.IntegerType, true));
+		structFields.add(DataTypes.createStructField("name", DataTypes.StringType, true));
+		structFields.add(DataTypes.createStructField("age", DataTypes.IntegerType, true));
+		
+		StructType structType = DataTypes.createStructType(structFields);
+		
+		//第三步，使用动态构造的元数据将RDD转换为DataFrame
+		DataFrame studentDF = sqlContext.createDataFrame(studentRows, structType);
+		
+		//后面，就可以使用DataFrame了
+		studentDF.registerTempTable("students");
+		
+		DataFrame teenagerDF = sqlContext.sql("select * from students where age < 18");
+		
+		List<Row> rows = teenagerDF.javaRDD().collect();
+		for(Row row : rows) {
+			System.out.println(row);
+		}
+	}
+}
+Scala代码如下：
+object RDD2DataFrameProgrammatically extends App {
+  
+  val conf = new SparkConf()
+        .setMaster("local")
+        .setAppName("RDD2DataFrameProgrammatically")
+        
+  val sc = new SparkContext(conf)
+  val sqlContext = new SQLContext(sc)
+  
+  //第一步，构造出元素为Row的普通RDD
+  val studentRDD = sc.textFile("./data/students.txt", 1)
+        .map { line => Row(line.split(",")(0).toInt, line.split(",")(1), line.split(",")(2).toInt) }
+  
+  //第二步，编程方式动态构造元数据
+  val structType = StructType(Array(
+      StructField("id",IntegerType,true),
+      StructField("name",StringType,true),
+      StructField("age",IntegerType,true)))
+  
+  //第三步，进行RDD到DataFrame的转换
+  val studentDF = sqlContext.createDataFrame(studentRDD, structType)
+  
+  //接续正常使用
+  studentDF.registerTempTable("students")
+  
+  val teenagerDF = sqlContext.sql("select * from students where age<=18")
+  
+  val teenagerRDD = teenagerDF.rdd.collect().foreach { row => println(row) }
+}
+

@@ -1,0 +1,300 @@
+数据插入方式
+本地
+hive (default)> load data local inpath '/root/stu.txt' into table student；
+hdfs
+hive> load data inpath '/home/xiong/add.txt' into table student;
+创建表时从另外表插入
+create table stu as select * from student;
+create table stu like student;  无数据
+查询数据导入
+hive> create table test(id int, name string,tel string) partitioned by (age int) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' STORED AS TEXTFILE;
+
+内部表
+create table stu as select * from student;     运行MapReduce
+
+1.查看表信息 
+desc student;
+desc extended student;
+desc formatted student;
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+2.外部表  删除后数据文件还在
+create external table dept(id int,name string,num long) row format delimited field terminated by '\t';
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+3.内部表和外部表的转换
+alter table student set tblproperties('EXTERNAL'='TRUE');
+TRUE为外部表
+FALSE为内部表
+
+——————————————————————————————————————————————————————————————————————————————————
+
+分区操作
+create table stu_partition(id int,name string) partitioned by(month string) row format delimited field terminated by '\t';
+load data local inpath '/root/stu.txt' into table stu_partition partition(month="20020101");
+load data local inpath '/root/stu.txt' into table stu_partition partition(month="20020102");
+
+alter table stu_partition add partition(month="20020103");
+alter table stu_partition add partition(month="20020103") partition(month="20020104");
+
+alter table stu_partition drop partition(month="20020103");
+alter table stu_partition drop partition(month="20020103"),partition(month="20020104");
+二级分区
+
+create table stu_partition(id int,name string) partitioned by(month string，day string) row format delimited field terminated by '\t';
+
+先建立文件在导入表
+hive>dfs -mkdir -p /user/hive/warehouse/stu_partition/month=20020103;
+hive>dfs -put /opt/module/datas/student.txt /user/hive/warehouse/stu_partition/month=20020103;
+方式一
+hive>msck repair table stu_partition；
+方式二
+hive>alter table stu_partition add partition(month="20020103");
+方式三
+hive>load data local inpath '/opt/module/datas/student.txt' into table stu_partition partition(month="20020101");
+
+——————————————————————————————————————————————————————————————————————————————————
+
+修改表
+1.修改表名
+ALTER TABLE student RENAME TO stu;
+2.列修改
+ALTER TABLE student CHANGE COLUMN  older_name  new_name string;        改变列名
+ALTER TABLE student ADD COLUMNS (new_name string);					增加列
+ALTER TABLE student REPLACE COLUMNS (new_name string);        ****替换所有字段
+
+——————————————————————————————————————————————————————————————————————————————————
+
+DML操作
+1.load
+load data [local] inpath '/root/stu.txt' [overwrite] into table stu_partition [partition(month="20020102")];
+overwrite into(覆盖) 或者 into
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+2.insert
+insert into table student [partition(month='')] values(1,'zhang');
+insert overwrite table student [partition(month='')] values(1,'zhang');	
+
+insert into table student [partition(month='')] select * from stu where month='';
+多表插入
+from stu insert into table student [partition(month='')] select * where month='' insert into table student [partition(month='')] select * where month='' 
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+3.location 指明表在hdfs存放的位置
+create table stu like student location '/user/tmp/';
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+4.import
+先export导出。才能import
+import table student [partition()] from '/user/hive/warehouse/export/student';
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+5.insert导出
+hive>insert overwrite local directory '/opt/module/data/stu' 
+ 	>row format delimited field terminated by '\t'
+	>select * from student;
+
+hive>insert overwrite directory '/data/stu' 
+ 	>row format delimited field terminated by '\t'
+	>select * from student;
+6.其他导出
+hive>dfs -get /stu_partition/stu.txt /opt/module/data/student.txt
+$hive -e 'select * from student' > /opt/module/data/student.txt
+hive>export table student to '/user/hive/warehouse/export/student' 
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+7.清空表数据,只对内部表起作用，外部表报错
+truncate table student;
+
+——————————————————————————————————————————————————————————————————————————————————
+
+查询
+
+select count(field) from student;
+select max(field) from student;
+select min(field) from student;
+select avg(field) from student;
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+where 
+	<=>  
+	sal=500
+	sal>500
+	sal is null
+	sal in (100,500)
+	sal between 100 and 500
+
+	sal like '2%'
+	sal rlike '[2]';
+
+	and
+	or
+	not
+group by
+having
+
+join ... on ...
+left join ... on ...
+right join ... on ...
+full join ... on ...
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+order by   [asc|desc]  
+distribute by 	sort by
+cluster by
+——————————————————————————————————————————————————————————————————————————————————
+分桶
+
+
+create table stu_bucket(id int,name string) clustered by(id) into 4 buckets row format delimited field terminated by '\t';
+
+开启支持分桶
+set hive.enforce.bucketing=true;
+默认：false；设置为true之后，mr运行时会根据bucket的个数自动分配reduce task个数。（用户也可以通过mapred.reduce.tasks自己设置reduce任务个数，但分桶时不推荐使用）
+注意：一次作业产生的桶（文件数量）和reduce task个数一致。
+
+往分桶表中加载数据
+insert into table bucket_table select columns from tbl;
+insert overwrite table bucket_table select columns from tbl;
+
+桶表 抽样查询
+select * from bucket_table tablesample(bucket 1 out of 4 on columns);
+
+TABLESAMPLE语法：
+TABLESAMPLE(BUCKET x OUT OF y)
+x：表示从哪个bucket开始抽取数据
+y：必须为该表总bucket数的倍数或因子
+
+z为桶的总数，抽z/y个桶，从第x个开始抽，下一个是第x+y个，最后一个是 x+（（z/y）-1）y）=x+z-y
+——————————————————————————————————————————————————————————————————————————————————
+
+null赋值
+
+两种方法
+select ename,NVL(sal, -1) from emp;
+
+select ename,NVL(sal, id) from emp;
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+case when then else end
+
+table: name deptname sex           emp
+
+select deptname,
+sum(case sex when '男' then 1 else 0 end) male_count,
+sum(case sex when '男' then 1 else 0 end) female_count
+from emp
+group by deptname
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+行转列
+
+孙悟空	白羊座	A
+大海		射手座	A
+宋宋		白羊座	B
+猪八戒	白羊座	A
+凤姐		白羊座	A
+
+射手座,A 	大海	|凤姐
+白羊座,A 	孙悟空|猪八戒
+白羊座,B 	宋宋	
+
+
+concat(string a/col,string b/col...) 连接字符或者列数据
+
+使用函数：concat_ws(',',collect_set(column))    分隔符连接 
+
+说明：collect_list 不去重，collect_set 去重。 column 的数据类型要求是 string
+
+select concat(col2,',',col1) c_b,col3 from table
+
+select t1.c_b,collect_set(t1.col3)
+from (select concat(col2,',',col1) c_b,col3 from table) t1
+group by t1.c_b
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+列转行
+
+select user_id,order_value,order_id
+from lie_col
+lateral view explode(split(order_value,',')) num as order_id
+limit 10;
+
+——————————————————————————————————————————————————————————————————————————————————
+
+窗口函数
+
+name,orderdate,cost
+jack,2015-01-01,10 
+tony,2015-01-02,15 
+jack,2015-02-03,23 
+tony,2015-01-04,29 
+jack,2015-01-05,46 
+jack,2015-04-06,42 
+tony,2015-01-07,50 
+jack,2015-01-08,55 
+mart,2015-04-08,62 
+mart,2015-04-09,68 
+neil,2015-05-10,12 
+mart,2015-04-11,75 
+neil,2015-06-12,80 
+mart,2015-04-13,94
+
+查询在2015年4月份购买过的顾客及总人数
+select name,count(*) over ()
+from t_window
+where substring(orderdate,1,7) = '2015-04'
+group by name；
+
+
+顾客的购买明细及月购买总额
+
+	select name,orderdate,cost,sum(cost) over(partition by month(orderdate))
+	from t_window
+
+将cost按照月进行累加
+
+	select name,orderdate,cost,sum(cost) over(partition by month(orderdate) order by orderdate )
+	from t_window
+
+查看顾客上次的购买时间
+	select name,orderdate,cost, 
+		lag(orderdate,1,'1900-01-01') over(partition by name order by orderdate ) as time1, 
+		lag(orderdate,2) over (partition by name order by orderdate) as time2 
+	from t_window;
+
+	time1取的为按照name进行分组,分组内升序排列,取上一行数据的值.
+
+	time2取的为按照name进行分组，分组内升序排列,取上面2行的数据的值,注意当lag函数为设置行数值时,默认为1行.未设定取不到时的默认值时,取null值.
+
+	lead函数与lag函数方向相反,取向下的数据.
+每位顾客购买金额前1/3的交易记录
+
+	select name,orderdate,cost,
+		ntile(3) over(partition by name order by cost ) 
+	from t_window
+
+——————————————————————————————————————————————————————————————————————————————————
+
+rank() 排序相同时会重复，总数不会变  
+
+dense_rank()排序相同时会重复，总数会减少
+
+row_number() 会根据顺序计算
+
+select id,
+name,
+sal,
+rank()over(partition by name order by sal desc ) rp,
+dense_rank() over(partition by name order by sal desc ) drp,
+row_number()over(partition by name order by sal desc) rmp
+from f_test
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,40 @@
+知识背景（1）
+hive 是目前大数据领域，事实上的sql 标准。其底层默认是基于MapReduce实现的，但是由于MapReduce速度不够快。因此近几年，陆续出来了新的Sql 查询引擎。包括Spark Sql ，hive on tez ,hive on spark. 
+Spark Sql 和hive on spark 是不一样的。spark sql 是Spark 自己开发出来针对各种数据源，包括hive ,json,Parquet，jdbc,rdd等都可以执行查询，一套基于spark计算的引擎的查询引擎。因此他是spark 的一个项目，只不过是提供了针对hive 执行查询的功能而已。适合在一些使用spark 技术栈的大数据应用类中使用。 
+而Hive on spark 是hive 的一个子项目，它是指不通过mapReduce 作为唯一的查询引擎，而是将spark 作为底层的查询引擎。hive on spark 只适用于hive 在可预见的未来，很有可能Hive默认的底层引擎就从MapReduce 切换到Spark 了 。使用于将原来有的Hive 数据仓库以及数据统计分析替换为spark 引擎，作为全公司通用的大数据统计分析引擎。
+
+知识背景（2）
+hive 基本工作原理： 
+hive ql 语句=> 
+语法分析=>AST=> 
+生成逻辑执行计划=>Operator Tree=> 
+优化逻辑生成计划=>Optimized Operator Tree=> 
+生成物理执行计划=>Task Tree => 
+优化物理生成计划=>Optimized Task Tree=> 
+执行优化后的Optimized Task Tree。
+
+知识背景（3）
+Hive on spark 计算原理 
+1. 将Hive 表作为SparkRDD 来进行操作 
+2. 使用hive 原语 
+对于一些针对于RDD的操作，比如groupByKey,softByKey等不使用Spark的transformation操作和原语。如果那样的话，那么就需要重新实现一套Hive 的原语，而且如果Hive 增加了新功能，那么又要实现新的spark 原语。因此选择将hive 的原语包装为针对于RDD的操作即可。 
+3.新的执行计划生成机制 
+使用SparkCompiler 将逻辑执行计划，即可Operator Tree ,转换为Task Tree ,提交Spark Task 给 Spark 进行执行。sparkTask 包装了DAG ，DAG 包装为SparkWork .SparkTask 根据SparkWork 表示的DAG 计算。 
+4. SparkContext生命周期 
+hive on Spark 会为每个用户的会话比如说执行一次Sql 创建一个SparkContext但是Spark 不允许在一个JVM 内穿概念多个SparkContext。因此需要在单独的JVM中启动每个会话的Sparkcontext 然后通过RPC 与远程JVM中的Spark Context 进行通信。 
+5本地和远程运行模式 
+Hive on spark 提供两种运行模式，本地和远程。如果将SparkMaster 这是为local ，比如set.spark.master=local 那么就是本地模式，sparkContext 与客户端运行在一个JVM 中。否则如果将sparkMaster 设置为master 的地址，那么就是远程模式，sparkcontext 会在远程jvm 中启动，远程模式下 每个用户session 都会创建一个sparkClient sparkClient 启动RemoveDriver RemoveDriver负责创建SparkContext
+
+知识背景（4）
+hive on spark提供了一些优化 
+1 Map join Spark Sql 默认对join 是支持使用BroatCast 机制 将小表广播到各个节点上，以进行join 但是问题是这会driver 和worker 带来很大的内存开销。因为广播的数据要一直报讯在Driver 中所以目前采取的措施是类似于MapReduce 的Distribuesd cache 机制 ，即提高Hdfs replica factor 的赋值因子，让数据在每一个计算节点上都有一个备份，从而可以在本地进行读取数据。 
+2.cache table 
+对于某些需要对一张表执行多次操作的场景，hive on spark 内部做了优化，即将要多次操作的表cache 到内存中以便于提升性能。但是这里要注意并不是所有的情况都会自动进行cache 所以说hive on spark 很有很多需要完善的地方
+
+环境搭建
+首先需要搭建一个hive 
+可以参考http://www.haha174.top/article/details/253250
+
+只需要设置 set hive.execution.engine=spark 命令设置hive 的执行引擎为Saprk 即可
+
+set spark.master=local 或者 set spark.master=127.0.0.1：7077

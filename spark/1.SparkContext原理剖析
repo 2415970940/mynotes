@@ -1,0 +1,490 @@
+SparkContext原理剖析
+
+这篇文章会从 SparkContext 创建3大核心对象 TaskSchedulerImpl、DAGScheduler 和 SchedulerBackend 开始到注册给 Master 这个过程中的源码鉴赏.
+SparkContext 是整个 Spark 程序通往集群的唯一通道，它是程序起点，也是程序终点.
+你在程序的开头必需先定义SparkContext、接著调用 SparkContext 的方法，比如说 sc.textFile(file)，最后也会调用 sc.stop( ) 来退出应用程序。
+
+这篇文章能为读者带出以下的启发：
+
+    了解在 SparkContext 内部创建了那些实例对象以及如何创建
+    了解真正是那个实例对象向 Master 注册以及如何注册
+
+
+1.Spark 程序在运行的时候分为 Driver 和 Executor 两部分
+2.Spark 程序编写是基于 SparkContext 的，具体来说包含两方面
+    1.Spark 编程的核心 基础-RDD 是由 SparkContext 来最初创建的（第一个RDD一定是由 SparkContext 来创建的）
+    2.Spark 程序的调度优化也是基于 SparkContext，首先进行调度优化。
+3.Spark 程序的注册时通过 SparkContext 实例化时候生产的对象来完成的（其实是 SchedulerBackend 来注册程序）
+4.Spark 程序在运行的时候要通过 Cluster Manager 获取具体的计算资源，计算资源获取也是通过 SparkContext 产生的对象来申请的（其实是 SchedulerBackend 来获取计算资源的）
+5.SparkContext 崩溃或者结束的时候整个 Spark 程序也结束啦！
+=================================================================================================
+图片="G:\git-manage\save_img\spark\1114\sparkContext工作流程.png"
+
+
+1.SparkContext 構建的頂級三大核心：DAGScheduler, TaskScheduler, SchedulerBackend，其中：
+    DAGScheduler 是面向 Job 的 Stage 的高層調度器；
+    TaskScheduler 是一個接口，是低層調度器，根據具體的 ClusterManager 的不同會有不同的實現，Standalone 模式下具體的實現 TaskSchedulerImpl; 
+    SchedulerBackend 是一個接口，根據具體的 ClusterManager 的不同會有不同的實現，Standalone 模式下具體的實現是SparkDeploySchedulerBackend
+2.從整個程序運行的角度來講，SparkContext 包含四大核心對象：
+    DAGScheduler, TaskScheduler, SchedulerBackend, MapOutputTrackerMaster
+3.SparkDeploySchedulerBackend 有三大核心功能：
+    負責與 Master 連接注冊當前程序 RegisterWithMaster
+    接收集群中為當前應用程序而分配的計算資源 Executor 的注冊並管理 Executors; 
+    負責發送 Task 到具體的 Executor 執行
+
+=================================================================================================
+创建 SparkContext 的核心对象
+  程序一开始运行时会实例化 SparkContext 里的东西，所以不在方法里的成员都会被实例化！
+  一开始实例化的时候第一个关键的代码是 createTaskScheduler，它是位于 SparkContext 的 Primary Constructor 中，
+  当它实例化时会直接被调用，这个方法返回的是 taskScheduler 和 dagScheduler 的实例，
+  然后基于这个内容又构建了 DAGScheduler，然后调用 taskScheduler 的 start( ) 方法，
+  要先创建taskScheduler然后再创建 dagScheduler，因为taskScheduler是受dagScheduler管理的。
+
+SparkContext.scala
+val (sched, ts) = SparkContext.createTaskScheduler(this, master, deployMode)
+    _schedulerBackend = sched
+    _taskScheduler = ts
+    _dagScheduler = new DAGScheduler(this)
+    _heartbeatReceiver.ask[Boolean](TaskSchedulerIsSet)
+
+// start TaskScheduler after taskScheduler sets DAGScheduler reference in DAGScheduler's
+    // constructor
+    _taskScheduler.start()
+
+=================================================================================================
+调用 createTaskSchedule，这个方法创建了 TaskSchdulerImpl 和 SparkDeploySchedulerBackend，
+接受第一个参数是 SparkContext 对象本身，然后是字符串，(这也是你平时转入 master 里的字符串)，
+deployMode默认client,还有cluster, client有大量网络开销，cluster查询日志不方便，
+
+WordCount.scala
+val  conf=new SparkConf().setAppName("WordCount").setMaster("local")
+val sc=new SparkContext(conf)
+
+ SparkContext.scala 中的 createTaskScheduler 方法
+private def createTaskScheduler(
+    sc: SparkContext,
+    master: String,
+    deployMode: String): (SchedulerBackend, TaskScheduler) = {
+  import SparkMasterRegex._
+
+它会判断一下你的 master 是什么然后具体进行不同的操作！假设我们是Spark 集群模式，它会：
+SparkContext.scala 中的 SparkMasterRegex 静态对象
+private object SparkMasterRegex {
+  // Regular expression used for local[N] and local[*] master formats
+  val LOCAL_N_REGEX = """local\[([0-9]+|\*)\]""".r
+  // Regular expression for local[N, maxRetries], used in tests with failing tasks
+  val LOCAL_N_FAILURES_REGEX = """local\[([0-9]+|\*)\s*,\s*([0-9]+)\]""".r
+  // Regular expression for simulating a Spark cluster of [N, cores, memory] locally
+  val LOCAL_CLUSTER_REGEX = """local-cluster\[\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*]""".r
+  // Regular expression for connecting to Spark deploy clusters
+  val SPARK_REGEX = """spark://(.*)""".r
+}
+
+=================================================================================================
+
+  创建 TaskSchedulerImpl 实例然后把 SparkContext 传进去； 
+
+  匹配集群中 master 的地址 e.g. spark:// 
+  
+  创建 (spark1.6是SparkDeploySchedulerBackend而spark2.1是StandaloneSchedulerBackend) 实例，
+  然后把 taskScheduler (这里是 TaskSchedulerImpl)、SparkContext 和 master 地址信息传进去；
+  
+  调用 taskScheduler (这里是 TaskSchedulerImpl) 的 initialize 方法 最后返回 (SparkDeploySchedulerBackend, TaskSchedulerImpl) 的实例对象
+  
+  SparkDeploySchedulerBackend 是被 TaskSchedulerImpl 來管理的，所以这里要首先把 scheduler 创建，然后把 scheduler 的实例传进去。
+
+SparkContext.scala 的createTaskScheduler 方法中的调用模式匹配 SPARK_REGEX 的处理逻辑
+case SPARK_REGEX(sparkUrl) =>
+        val scheduler = new TaskSchedulerImpl(sc)
+        val masterUrls = sparkUrl.split(",").map("spark://" + _)
+        val backend = new StandaloneSchedulerBackend(scheduler, sc, masterUrls)
+        scheduler.initialize(backend)
+        (backend, scheduler)
+
+TaskSchedulerImpl 默认失败后重新启动次数为 MAX_TASK_FAILURES=4 次
+private[spark] class TaskSchedulerImpl(
+    val sc: SparkContext,
+    val maxTaskFailures: Int,
+    isLocal: Boolean = false)
+  extends TaskScheduler with Logging
+{
+  def this(sc: SparkContext) = this(sc, sc.conf.get(config.MAX_TASK_FAILURES))
+
+=================================================================================================
+
+创建一个 Pool 来初定义资源分布的模式 Scheduling Mode，默认是先进先出的 模式。
+
+TaskSchedulerImpl.initialize( )方法是
+
+def initialize(backend: SchedulerBackend) {
+  this.backend = backend
+  // temporarily set rootPool name to empty
+  rootPool = new Pool("", schedulingMode, 0, 0)
+  schedulableBuilder = {
+    schedulingMode match {
+      case SchedulingMode.FIFO =>
+        new FIFOSchedulableBuilder(rootPool)
+      case SchedulingMode.FAIR =>
+        new FairSchedulableBuilder(rootPool, conf)
+      case _ =>
+        throw new IllegalArgumentException(s"Unsupported spark.scheduler.mode: $schedulingMode")
+    }
+  }
+  schedulableBuilder.buildPools()
+}
+
+private val schedulingModeConf = conf.get("spark.scheduler.mode", "FIFO")
+val schedulingMode: SchedulingMode = try {
+  SchedulingMode.withName(schedulingModeConf.toUpperCase)
+} catch {
+  case e: java.util.NoSuchElementException =>
+    throw new SparkException(s"Unrecognized spark.scheduler.mode: $schedulingModeConf")
+}
+
+
+-----------------------------------------------------------------------------------------------
+调用 taskScheduler 的 start( ) 方法
+
+在这个方法中再调用 backend (SparkDeploySchedulerBackend) 的 start( ) 方法
+TaskSchedulerImpl.scala
+  override def start() {
+    backend.start()
+
+    if (!isLocal && conf.getBoolean("spark.speculation", false)) {
+      logInfo("Starting speculative execution thread")
+      speculationScheduler.scheduleAtFixedRate(new Runnable {
+        override def run(): Unit = Utils.tryOrStopSparkContext(sc) {
+          checkSpeculatableTasks()
+        }
+      }, SPECULATION_INTERVAL_MS, SPECULATION_INTERVAL_MS, TimeUnit.MILLISECONDS)
+    }
+  }
+
+
+StandaloneSchedulerBackend.scala
+注册到Master
+override def start() {
+    super.start()
+
+    // SPARK-21159. The scheduler backend should only try to connect to the launcher when in client
+    // mode. In cluster mode, the code that submits the application to the Master needs to connect
+    // to the launcher instead.
+    if (sc.deployMode == "client") {
+      launcherBackend.connect()
+    }
+
+    // The endpoint for executors to talk to us
+    val driverUrl = RpcEndpointAddress(
+      sc.conf.get("spark.driver.host"),
+      sc.conf.get("spark.driver.port").toInt,
+      CoarseGrainedSchedulerBackend.ENDPOINT_NAME).toString
+    val args = Seq(
+      "--driver-url", driverUrl,
+      "--executor-id", "{{EXECUTOR_ID}}",
+      "--hostname", "{{HOSTNAME}}",
+      "--cores", "{{CORES}}",
+      "--app-id", "{{APP_ID}}",
+      "--worker-url", "{{WORKER_URL}}")
+    val extraJavaOpts = sc.conf.getOption("spark.executor.extraJavaOptions")
+      .map(Utils.splitCommandString).getOrElse(Seq.empty)
+    val classPathEntries = sc.conf.getOption("spark.executor.extraClassPath")
+      .map(_.split(java.io.File.pathSeparator).toSeq).getOrElse(Nil)
+    val libraryPathEntries = sc.conf.getOption("spark.executor.extraLibraryPath")
+      .map(_.split(java.io.File.pathSeparator).toSeq).getOrElse(Nil)
+
+    // When testing, expose the parent class path to the child. This is processed by
+    // compute-classpath.{cmd,sh} and makes all needed jars available to child processes
+    // when the assembly is built with the "*-provided" profiles enabled.
+    val testingClassPath =
+      if (sys.props.contains("spark.testing")) {
+        sys.props("java.class.path").split(java.io.File.pathSeparator).toSeq
+      } else {
+        Nil
+      }
+
+    // Start executors with a few necessary configs for registering with the scheduler
+    val sparkJavaOpts = Utils.sparkJavaOpts(conf, SparkConf.isExecutorStartupConf)
+    val javaOpts = sparkJavaOpts ++ extraJavaOpts
+    //當通過 SparkDeploySchedulerBackend 注冊程序給 Master 的時候會把以上的 command 提交給 Master 
+    val command = Command("org.apache.spark.executor.CoarseGrainedExecutorBackend",
+      args, sc.executorEnvs, classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
+    val appUIAddress = sc.ui.map(_.appUIAddress).getOrElse("")
+    val coresPerExecutor = conf.getOption("spark.executor.cores").map(_.toInt)
+    // If we're using dynamic allocation, set our initial executor limit to 0 for now.
+    // ExecutorAllocationManager will send the real initial limit to the Master later.
+    val initialExecutorLimit =
+      if (Utils.isDynamicAllocationEnabled(conf)) {
+        Some(0)
+      } else {
+        None
+      }
+    val appDesc = new ApplicationDescription(sc.appName, maxCores, sc.executorMemory, command,
+      appUIAddress, sc.eventLogDir, sc.eventLogCodec, coresPerExecutor, initialExecutorLimit)
+    client = new StandaloneAppClient(sc.env.rpcEnv, masters, appDesc, this, conf)
+    client.start()
+    launcherBackend.setState(SparkAppHandle.State.SUBMITTED)
+    waitForRegistration()
+    launcherBackend.setState(SparkAppHandle.State.RUNNING)
+  }
+
+val command = Command("org.apache.spark.executor.CoarseGrainedExecutorBackend",
+      args, sc.executorEnvs, classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
+client = new StandaloneAppClient(sc.env.rpcEnv, masters, appDesc, this, conf)
+上面两条重要语句
+
+
+CoarseGrainedExecutorBackend
+Master 發指令給 Worker 去啟動 Executor 所有的進程的時候加載的 Main 方法所在的入口類就是 command 中的 CoarseGrainedExecutorBackend，
+當然你可以實現自己的 ExecutorBackend，在 CoarseGrainedExecutorBackend 中啟動 Executor (Executor 是先注冊再實例化)，Executor 通過线程池並發執行 Task。
+CoarseGrainedExecutorBackend.scala 中伴生对象object CoarseGrainedExecutorBackend extends Logging
+  def main(args: Array[String]) {
+    var driverUrl: String = null
+    var executorId: String = null
+    var hostname: String = null
+    var cores: Int = 0
+    var appId: String = null
+    var workerUrl: Option[String] = None
+    val userClassPath = new mutable.ListBuffer[URL]()
+
+    var argv = args.toList
+    while (!argv.isEmpty) {
+      argv match {
+        case ("--driver-url") :: value :: tail =>
+          driverUrl = value
+          argv = tail
+        case ("--executor-id") :: value :: tail =>
+          executorId = value
+          argv = tail
+        case ("--hostname") :: value :: tail =>
+          hostname = value
+          argv = tail
+        case ("--cores") :: value :: tail =>
+          cores = value.toInt
+          argv = tail
+        case ("--app-id") :: value :: tail =>
+          appId = value
+          argv = tail
+        case ("--worker-url") :: value :: tail =>
+          // Worker url is used in spark standalone mode to enforce fate-sharing with worker
+          workerUrl = Some(value)
+          argv = tail
+        case ("--user-class-path") :: value :: tail =>
+          userClassPath += new URL(value)
+          argv = tail
+        case Nil =>
+        case tail =>
+          // scalastyle:off println
+          System.err.println(s"Unrecognized options: ${tail.mkString(" ")}")
+          // scalastyle:on println
+          printUsageAndExit()
+      }
+    }
+
+    if (driverUrl == null || executorId == null || hostname == null || cores <= 0 ||
+      appId == null) {
+      printUsageAndExit()
+    }
+
+    run(driverUrl, executorId, hostname, cores, appId, workerUrl, userClassPath)
+    System.exit(0)
+  }
+
+run(driverUrl, executorId, hostname, cores, appId, workerUrl, userClassPath)
+
+private def run(
+      driverUrl: String,
+      executorId: String,
+      hostname: String,
+      cores: Int,
+      appId: String,
+      workerUrl: Option[String],
+      userClassPath: Seq[URL]) {
+
+    Utils.initDaemon(log)
+
+    SparkHadoopUtil.get.runAsSparkUser { () =>
+      // Debug code
+      Utils.checkHost(hostname)
+
+      // Bootstrap to fetch the driver's Spark properties.
+      val executorConf = new SparkConf
+      val port = executorConf.getInt("spark.executor.port", 0)
+      val fetcher = RpcEnv.create(
+        "driverPropsFetcher",
+        hostname,
+        port,
+        executorConf,
+        new SecurityManager(executorConf),
+        clientMode = true)
+      val driver = fetcher.setupEndpointRefByURI(driverUrl)
+      val cfg = driver.askWithRetry[SparkAppConfig](RetrieveSparkAppConfig)
+      val props = cfg.sparkProperties ++ Seq[(String, String)](("spark.app.id", appId))
+      fetcher.shutdown()
+
+      // Create SparkEnv using properties we fetched from the driver.
+      val driverConf = new SparkConf()
+      for ((key, value) <- props) {
+        // this is required for SSL in standalone mode
+        if (SparkConf.isExecutorStartupConf(key)) {
+          driverConf.setIfMissing(key, value)
+        } else {
+          driverConf.set(key, value)
+        }
+      }
+      if (driverConf.contains("spark.yarn.credentials.file")) {
+        logInfo("Will periodically update credentials from: " +
+          driverConf.get("spark.yarn.credentials.file"))
+        SparkHadoopUtil.get.startCredentialUpdater(driverConf)
+      }
+
+      val env = SparkEnv.createExecutorEnv(
+        driverConf, executorId, hostname, port, cores, cfg.ioEncryptionKey, isLocal = false)
+
+      env.rpcEnv.setupEndpoint("Executor", new CoarseGrainedExecutorBackend(
+        env.rpcEnv, driverUrl, executorId, hostname, cores, userClassPath, env))
+      workerUrl.foreach { url =>
+        env.rpcEnv.setupEndpoint("WorkerWatcher", new WorkerWatcher(env.rpcEnv, url))
+      }
+      env.rpcEnv.awaitTermination()
+      SparkHadoopUtil.get.stopCredentialUpdater()
+    }
+  }
+
+伴生类
+
+private[spark] class CoarseGrainedExecutorBackend(
+    override val rpcEnv: RpcEnv,
+    driverUrl: String,
+    executorId: String,
+    hostname: String,
+    cores: Int,
+    userClassPath: Seq[URL],
+    env: SparkEnv)
+  extends ThreadSafeRpcEndpoint with ExecutorBackend with Logging 
+
+注冊成功后再实例化
+
+override def receive: PartialFunction[Any, Unit] = {
+    case RegisteredExecutor =>
+      logInfo("Successfully registered with driver")
+      try {
+        executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
+      } catch {
+        case NonFatal(e) =>
+          exitExecutor(1, "Unable to create executor due to " + e.getMessage, e)
+      }
+
+
+SparkDeploySchedulerBackend 的 start 方法内幕
+
+然后创建一个很重要的对象，AppClient 对象，然后调用它的 client (AppClient) 的 start( ) 方法，创建一个 ClientEndpoint 对象。
+
+def start() {
+    // Just launch an rpcEndpoint; it will call back into the listener.
+    endpoint.set(rpcEnv.setupEndpoint("AppClient", new ClientEndpoint(rpcEnv)))
+  }
+
+private class ClientEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint
+    with Logging
+它是一个 RpcEndPoint，然后接下来的故事就是向 Master 注冊，首先调用自己的 onStart 方法
+
+    override def onStart(): Unit = {
+      try {
+        registerWithMaster(1)
+      } catch {
+        case e: Exception =>
+          logWarning("Failed to connect to master", e)
+          markDisconnected()
+          stop()
+      }
+    }
+
+然后再调用 registerWithMaster 方法
+
+private def registerWithMaster(nthRetry: Int) {
+      registerMasterFutures.set(tryRegisterAllMasters())
+      registrationRetryTimer.set(registrationRetryThread.schedule(new Runnable {
+        override def run(): Unit = {
+          if (registered.get) {
+            registerMasterFutures.get.foreach(_.cancel(true))
+            registerMasterThreadPool.shutdownNow()
+          } else if (nthRetry >= REGISTRATION_RETRIES) {
+            markDead("All masters are unresponsive! Giving up.")
+          } else {
+            registerMasterFutures.get.foreach(_.cancel(true))
+            registerWithMaster(nthRetry + 1)
+          }
+        }
+      }, REGISTRATION_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+    }
+
+从 registerWithMaster 调用 tryRegisterAllMasters，开一条新的线程来注冊，
+然后发送一条信息(RegisterApplication 的case class ) 给 Master，注冊是通过 Thread 来完成的。
+
+    private def tryRegisterAllMasters(): Array[JFuture[_]] = {
+      for (masterAddress <- masterRpcAddresses) yield {
+        registerMasterThreadPool.submit(new Runnable {
+          override def run(): Unit = try {
+            if (registered.get) {
+              return
+            }
+            logInfo("Connecting to master " + masterAddress.toSparkURL + "...")
+            val masterRef = rpcEnv.setupEndpointRef(masterAddress, Master.ENDPOINT_NAME)
+            masterRef.send(RegisterApplication(appDescription, self))
+          } catch {
+            case ie: InterruptedException => // Cancelled
+            case NonFatal(e) => logWarning(s"Failed to connect to master $masterAddress", e)
+          }
+        })
+      }
+    }
+
+// AppClient to Master
+case class RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef)
+    extends DeployMessage
+
+ApplicationDescription 的 case class
+
+private[spark] case class ApplicationDescription(
+    name: String,
+    maxCores: Option[Int],
+    memoryPerExecutorMB: Int,
+    command: Command,
+    appUiUrl: String,
+    eventLogDir: Option[URI] = None,
+    // short name of compression codec used when writing event logs, if any (e.g. lzf)
+    eventLogCodec: Option[String] = None,
+    coresPerExecutor: Option[Int] = None,
+    // number of executors this application wants to start with,
+    // only used if dynamic allocation is enabled
+    initialExecutorLimit: Option[Int] = None,
+    user: String = System.getProperty("user.name", "<unknown>")) {
+
+  override def toString: String = "ApplicationDescription(" + name + ")"
+}
+
+Master 接受程序的注冊
+Master 收到了这个信息便开始注冊，注冊后最后再次调用 schedule( ) 方法
+
+override def receive: PartialFunction[Any, Unit] = {
+    case ElectedLeader =>
+      val (storedApps, storedDrivers, storedWorkers) = persistenceEngine.readPersistedData(rpcEnv)
+      state = if (storedApps.isEmpty && storedDrivers.isEmpty && storedWorkers.isEmpty) {
+        RecoveryState.ALIVE
+      } else {
+        RecoveryState.RECOVERING
+      }
+      logInfo("I have been elected leader! New state: " + state)
+      if (state == RecoveryState.RECOVERING) {
+        beginRecovery(storedApps, storedDrivers, storedWorkers)
+        recoveryCompletionTask = forwardMessageThread.schedule(new Runnable {
+          override def run(): Unit = Utils.tryLogNonFatalError {
+            self.send(CompleteRecovery)
+          }
+        }, WORKER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+      }
+
+
+
+
+

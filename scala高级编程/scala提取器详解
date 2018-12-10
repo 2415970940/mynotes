@@ -1,0 +1,22 @@
+scala提取器
+
+apply方法：
+
+伴生类和伴生对象的概念，companion class和companion object
+伴生对象里面，可以定义一个apply方法
+此时在apply方法中，会创建一个半生类的对象，返回回去
+
+这样的方式又一个好处：创建对象不需要new，直接传参数返回对象。
+
+unapply方法，顾名思义，那就是反过来。
+
+apply方法，是接收了一堆参数，返回一个对象
+unapply方法，接收一个字符串，然后解析出对象的属性值
+class Person{
+def unapply(str:String)={
+val splitx=str.indexOf(" ")
+if(splitx == -1)None
+else Some(str.substring(0,splitx),str.substring(splitx+1))
+    }
+}
+val Person(name,age)="jack 23"

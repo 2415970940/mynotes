@@ -1,0 +1,25 @@
+Kafka使用ZooKeeper
+
+1.配置管理
+2.Leader Election
+3.服务发现
+
+首先进入ZooKeeper客户端：
+/zkCli.sh
+
+
+
+ls / 可以看到有以下节点：
+
+ls /
+
+查看Topic 配置信息：体现了ZooKeeper的配置管理
+ls /config/topics
+get /config/topics/partitionTopic
+
+查看broker leader: (体现leader election功能)
+get /controller
+
+
+ 查看broker id 信息：（体现ZooKeeper服务发现）
+ ls /brokers/ids

@@ -1,0 +1,10 @@
+scala中的样例类，类似于java中的javabean，包含了一堆属性field，每个filed都有一对getter和setter方法
+
+case class Person(name:String,age:Int)
+//样例类默认有apply方法
+val p=Person("神策",28)
+
+//样例类默认有unapply方法,自动提取属性
+p match{
+    case Person(name,age)=> println(name + age)
+}   

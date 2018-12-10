@@ -1,0 +1,28 @@
+与RDD 类似，spark Streaming 也可以让开发人员手动控制，将数据流中的数据持久化到内存中。对DStream 调用persist ( ) 方法，就可以让spark Streaming 自动将该数据流中的所有产生的RDD 都持久化到内存中。如果要对于一个DStream 多次执行操作，那么对DStream 持久化是非常有用的。因为多次操作，可以共享一份数据。 
+对于基于窗口的操作，例如reduceBywindow 等以及基于状态的操作，比如updateStateKey ,默认就开启了持久化的机制。即spark streaming 默认就会将上述操作产生的DStream 中的数据，缓存内存中，不需要开发人员手动调用peisist 方法 
+对于通过网络接收数据的输入流，比如socket ，kafka flume 等持久化 级别是将数据复制一份，已便于容错。相当于是用的类似MEMORY_ONLY_SER_2 
+与RDD 不同的是，默认的持久化级别，统一都是要序列化的。
+
+
+checkpoint
+1.概述
+每一个spark streaming 应用正常来说都要7*24小时运转的，这就是实时计算程序的特点。因为要持续不断的对数据进行计算。因此，对实时计算的要求，应该是必须能够与应用程序逻辑无关的失败，进行容错。 
+如果要实现这个目标，spark streaming 程序就必须将足够的信息checkpoint 到容错的存储系统上，从而让他能够从失败中进行恢复。有两种数据需要进行checkpoint
+
+2.1元数据checkpoint
+将定义流式计算逻辑的信息，保存到容错的存储系统上，比如hdfs,当运行spark streaming 应用程序的Driver 进程所在节点失败时，该信息可以进行恢复。元数据信息包括： 
+（1）.配置信息 –创建spark Streaming 应用程序的配置信息，比如sparkConf 中的信息。 
+（2）DStream 操作信息–定义Spark Streaming 应用程序的计算逻辑的DStream 操作信息。 
+（3） 未处理的batch 信息–那些job 数据正在排队，还没有处理的batch 信息。
+
+2.2数据checkpoint
+将实时计算过程中产生的RDD 的数据保存到可靠的存储系统中。 
+对于一些将多个batch的数据进聚合，有状态的transform 操作，这是非常有用的。在这种transform 操作中，生成的RDD 依赖之前的batch 的RDD ,这个会导致随着时间的推移，RDD 的依赖链条会变得越来越长。 
+要避免依赖链条变得越来越长，导致的一起变得越来越长的失败恢复时间，有状态的transformation 操作执行过程中间产生的RDD 会定期的被checkpoint 到可靠的存储系统上如hdfs ，从而削减RDD 的依赖链条，进而缩短失败恢复时间。 
+一句话概括一下，元数据checkpoint 主要是为了从driver 中进行恢复，而RDD checkpoing 主要是为了 使用到有状态的transformation 操作时，能够在其生产出的数据丢失时，进行快速的数据恢复。
+
+3.如何启用checkpoint 机制
+1.对于有状态的transform 操作，启用checkpoint 机制，定期的将其生产的RDD 数据checkpoint 式比较简单的。 
+可以通过配置一个容错的，可靠的文件系统比如HDFS 目录，来启用checkpoint 机制，checkpoint 数据就会写入到该目录，使用StreamingContext 的checkpoint() 方法即可，然后就可以放心的使用有状态的transformation 操作可 
+2.如果为了要从Driver 失败进行恢复，那么启用checkpoint 机制，是比较复杂的需要改写spark Streaming 应用程序。 
+当应用程序第一次启动的时候 需要创建一个新的Streaming context 并且调用其start 方法进行启动当driver 从失败中恢复过来时，需要从checkpoint 目录中记录的元数据进行恢复，恢复出来一个Streaming context .

@@ -1,0 +1,20 @@
+SparkSql工作原理以及性能优化
+1工作原理
+1.大家都知道，只要在数据库类型的技术里面，比如,最传统的mysql,Oracle包括现在大数据领域的数据仓库如Hive ，他的基本Sql 执行的模型，都是类似的，首先生成一条SQL 语句的执行计划。例如Select name from names => 解析成从哪里去查询（names 表在那个文件里面，从文件中查询那么些数据（name 列））此外复杂的sql 比如查询时对表中的数据进行筛选，函数操作；还有更复杂的如多表join ，在传统数据库中（如mysql ）还涉及到如何扫描和利用索引。
+
+2.实际上 比如说传统的orical数据库，通常就会生成多个执行计划，然后呢，最后有一个优化器，针对多个计划选择一个最好的计划。而sparkSql z这里的优化指的是，刚生成的执行计划中，有些地方的性能是显而易见的。比如说这里有一个sql 语句select name from (select name from …..) where …… 此时在执行计划解析出来的时候，其实呢就是按照它原封不动的样子来解析成 ，可是执行的计划呢，在这里就会进行优化，，比如说发现where 条件 其实可以放到子查询中，这样子查询的数据量就会大大减少，可以优化执行数据，此时可能就会编程如下这样，select name from (select name from ….. where …… ) 
+3.执行物理计划，就类似于从哪个文件去读取数据，从那几个文件读取数据进行怎样的关联等等， 
+4执行物理计划 
+5.转换RDD 
+图解如下： 
+G:\git-manage\save_img\spark\1114
+
+2性能优化
+1.设置shuffle 过程中的并行度： spark.sql.shuffle.partitions 
+2.在Hive 仓库建设过程中，合理这是数据类型，比如设置能设置Int，就不要设置BIGINT 较少数据类型导致的不必要的内存开销。 
+3.编写sql 时尽量给出明确的列明比如select name 这种方式 不要使用 select * 方式 
+4.并行处理查询结果：对于sparkSql 查询结果如果数据量比较大的，比如超过了1000条那么不要一次性的collent 到driver 在处理。使用foreach 算子并行处理查询结果。 
+5.缓存表 ：对于一个SQL语句中可能多次使用到的表，可以进行缓存，使用 
+Sqlcontext.cacheTable(tableName) 或者DataSet.cache 即可SparkSql 会用内存列存储的格式进行表的缓存，然后SparkSql 就可以仅仅扫描需要使用到的列，并且自动优化压缩，来最小化内存使用和gc 开销。sqlContext.unCachetable(tableName)可以将表从缓存中移除。使用sqlContext .setconf()设置spark.sql.inMemoryColumnarStorage.batchSize参数（默认10000），可以配置列存储的单位 
+6.广播join表：spark.sql.autoBtoadcastJoinThresould 默认10485760（10M）在存储足够的情况下，提高其大小，最大在多大以内可以被广播出去，而不用进行网络数据传输。 
+7.钨丝计划 spark.sql.tungsten.enabled 默认是true 自动管理内存

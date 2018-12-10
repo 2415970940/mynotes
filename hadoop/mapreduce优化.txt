@@ -1,0 +1,23 @@
+MapReduce优化方法
+1.数据输入
+	合并小文件 combineTextInputFormat
+	
+2.Map阶段
+	减少溢写  io.sort.mb   sort.spill.percent
+	减少合并	io.sort.factor
+	根据业务逻辑进行，combine
+
+3.Reduce阶段
+	合理设置maptask和reducetask数量
+	设置map和reduce共存，	slowstart.completedmaps
+	不使用reduce
+	合理设置reduce端的buff
+
+4.IO传输 
+	数据压缩	snappy LZO
+	SequenceFlie传输
+
+5.数据倾斜
+
+6.常用参数设置
+

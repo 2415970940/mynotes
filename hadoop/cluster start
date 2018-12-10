@@ -1,0 +1,8 @@
+start-dfs.sh
+start-yarn.sh
+xcall zkServer.sh
+
+bin/start-hbase.sh
+bin/hbase shell
+
+nohup /opt/module/kafka_2.11/bin/kafka-server-start.sh  /opt/module/kafka_2.11/config/server.properties &

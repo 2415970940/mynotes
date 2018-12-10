@@ -1,0 +1,332 @@
+Master 接受 Driver, Worker, Application 注册內幕
+
+可以把 Master 想像成公司里的总经理，Driver 就是客户，Worker 是每个项目的技术领导，Executor 是实际干活的工程师，
+在实际情况下，他们三个会相互沟通，总经理一般都不会直接跟工程师沟通。但客户、技术领导和工程师一般都会进行沟通。
+用这个例子，你就可以理解在 Spark 的世界中Master、Driver、Worker 三者会进行沟通，
+Executor、Driver、Worker 三者也会进行沟通，而 Master 不会直接向 Excecutor 进行沟通。
+
+Master 對其他组件注册的处理
+	1.Master 接受注册的对象主要是 Driver, Application 和 Worker, 需要补充说明的是 Executor 不会注册给 Master，
+	Executor 是注册给 Driver 中的 SchedulerBackend 的；
+	
+	2.Worker 是在启动之后主动向Master 注册的，这样设计有一个很大的好处，就是在生产环境下如果想把新的Worker 加入到已经运行的Spark 集群上，
+	此时不需要重新启动Spark 集群就能够使用新加入的Worker 以提升处理能力；Worker 启动后会调用onStart( ) 方法，然后调用 registerWithMaster( ) 来注册给Master。
+
+
+ Worker.scala 中的 onStart 方法
+override def onStart() {
+	assert(!registered)
+	logInfo("Starting Spark worker %s:%d with %d cores, %s RAM".format(
+	  host, port, cores, Utils.megabytesToString(memory)))
+	logInfo(s"Running Spark version ${org.apache.spark.SPARK_VERSION}")
+	logInfo("Spark home: " + sparkHome)
+	createWorkDir()
+	shuffleService.startIfEnabled()
+	webUi = new WorkerWebUI(this, workDir, webUiPort)
+	webUi.bind()
+
+	workerWebUiUrl = s"http://$publicAddress:${webUi.boundPort}"
+	registerWithMaster()
+
+	metricsSystem.registerSource(workerSource)
+	metricsSystem.start()
+	// Attach the worker metrics servlet handler to the web ui after the metrics system is started.
+	metricsSystem.getServletHandlers.foreach(webUi.attachHandler)
+}
+
+这里  registerWithMaster( ) 首先会调用 tryRegisterAllMasters( )
+Worker.scala 中的 registerWithMaster 方法
+  private def registerWithMaster() {
+    // onDisconnected may be triggered multiple times, so don't attempt registration
+    // if there are outstanding registration attempts scheduled.
+    registrationRetryTimer match {
+      case None =>
+        registered = false
+        registerMasterFutures = tryRegisterAllMasters()
+        connectionAttemptCount = 0
+        registrationRetryTimer = Some(forwordMessageScheduler.scheduleAtFixedRate(
+          new Runnable {
+            override def run(): Unit = Utils.tryLogNonFatalError {
+              Option(self).foreach(_.send(ReregisterWithMaster))
+            }
+          },
+          INITIAL_REGISTRATION_RETRY_INTERVAL_SECONDS,
+          INITIAL_REGISTRATION_RETRY_INTERVAL_SECONDS,
+          TimeUnit.SECONDS))
+      case Some(_) =>
+        logInfo("Not spawning another attempt to register with the master, since there is an" +
+          " attempt scheduled already.")
+    }
+  }
+
+
+ Worker.scala 中的 tryRegisterAllMasters 方法
+private def tryRegisterAllMasters(): Array[JFuture[_]] = {
+    masterRpcAddresses.map { masterAddress =>
+      registerMasterThreadPool.submit(new Runnable {
+        override def run(): Unit = {
+          try {
+            logInfo("Connecting to master " + masterAddress + "...")
+            val masterEndpoint = rpcEnv.setupEndpointRef(masterAddress, Master.ENDPOINT_NAME)
+            registerWithMaster(masterEndpoint)
+          } catch {
+            case ie: InterruptedException => // Cancelled
+            case NonFatal(e) => logWarning(s"Failed to connect to master $masterAddress", e)
+          }
+        }
+      })
+    }
+  }
+
+这里发送一个 RegisterWorker 的 case class 去 masterEndpoint
+Worker.scala 中的 registerWithMaster 有一个参数的重载方法
+  private def registerWithMaster(masterEndpoint: RpcEndpointRef): Unit = {
+    masterEndpoint.ask[RegisterWorkerResponse](RegisterWorker(
+      workerId, host, port, self, cores, memory, workerWebUiUrl))
+      .onComplete {
+        // This is a very fast action so we can use "ThreadUtils.sameThread"
+        case Success(msg) =>
+          Utils.tryLogNonFatalError {
+            handleRegisterResponse(msg)
+          }
+        case Failure(e) =>
+          logError(s"Cannot register with master: ${masterEndpoint.address}", e)
+          System.exit(1)
+      }(ThreadUtils.sameThread)
+  }
+
+在 RegisterWorker 这个数据结构中具体会有 id、host、port、workerEndPoint、cores、memory、webUiPort、publicAddress 等信息。它会首先判断一下 host 是不是空值和 port 必须是大于 0
+
+3.Master 接到 Worker 注册的请求后，首先会判断一下当前的 Master 是否是 Standby 的模式，如果是的话就不处理，
+然后会判断当前 Master 内存的数据结构 idToWorker 中是否已经有该 Worker 的注册信息，如果有的话此时并不会重覆注册；
+
+  private val idToWorker = new HashMap[String, WorkerInfo]
+  private val addressToWorker = new HashMap[RpcAddress, WorkerInfo]
+
+  override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
+    case RegisterWorker(
+        id, workerHost, workerPort, workerRef, cores, memory, workerWebUiUrl) =>
+      logInfo("Registering worker %s:%d with %d cores, %s RAM".format(
+        workerHost, workerPort, cores, Utils.megabytesToString(memory)))
+      if (state == RecoveryState.STANDBY) {
+        context.reply(MasterInStandby)
+      } else if (idToWorker.contains(id)) {
+        context.reply(RegisterWorkerFailed("Duplicate worker ID"))
+      } else {
+        val worker = new WorkerInfo(id, workerHost, workerPort, cores, memory,
+          workerRef, workerWebUiUrl)
+        if (registerWorker(worker)) {
+          persistenceEngine.addWorker(worker)
+          context.reply(RegisteredWorker(self, masterWebUiUrl))
+          schedule()
+        } else {
+          val workerAddress = worker.endpoint.address
+          logWarning("Worker registration failed. Attempted to re-register worker at same " +
+            "address: " + workerAddress)
+          context.reply(RegisterWorkerFailed("Attempted to re-register worker at same address: "
+            + workerAddress))
+        }
+      }
+
+
+private def registerWorker(worker: WorkerInfo): Boolean = {
+    // There may be one or more refs to dead workers on this same node (w/ different ID's),
+    // remove them.
+    workers.filter { w =>
+      (w.host == worker.host && w.port == worker.port) && (w.state == WorkerState.DEAD)
+    }.foreach { w =>
+      workers -= w
+    }
+
+    val workerAddress = worker.endpoint.address
+    if (addressToWorker.contains(workerAddress)) {
+      val oldWorker = addressToWorker(workerAddress)
+      if (oldWorker.state == WorkerState.UNKNOWN) {
+        // A worker registering from UNKNOWN implies that the worker was restarted during recovery.
+        // The old worker must thus be dead, so we will remove it and accept the new worker.
+        removeWorker(oldWorker)
+      } else {
+        logInfo("Attempted to re-register worker at same address: " + workerAddress)
+        return false
+      }
+    }
+
+    workers += worker
+    idToWorker(worker.id) = worker
+    addressToWorker(workerAddress) = worker
+    if (reverseProxy) {
+       webUi.addProxyTargets(worker.id, worker.webUiAddress)
+    }
+    true
+  }
+
+
+private def removeWorker(worker: WorkerInfo) {
+    logInfo("Removing worker " + worker.id + " on " + worker.host + ":" + worker.port)
+    worker.setState(WorkerState.DEAD)
+    idToWorker -= worker.id
+    addressToWorker -= worker.endpoint.address
+    if (reverseProxy) {
+      webUi.removeProxyTargets(worker.id)
+    }
+    for (exec <- worker.executors.values) {
+      logInfo("Telling app of lost executor: " + exec.id)
+      exec.application.driver.send(ExecutorUpdated(
+        exec.id, ExecutorState.LOST, Some("worker lost"), None, workerLost = true))
+      exec.state = ExecutorState.LOST
+      exec.application.removeExecutor(exec)
+    }
+    for (driver <- worker.drivers.values) {
+      if (driver.desc.supervise) {
+        logInfo(s"Re-launching ${driver.id}")
+        relaunchDriver(driver)
+      } else {
+        logInfo(s"Not re-launching ${driver.id} because it was not supervised")
+        removeDriver(driver.id, DriverState.ERROR, None)
+      }
+    }
+    persistenceEngine.removeWorker(worker)
+  }
+
+4.通过持久化引擎例如 ZooKeeper 把注册信息持久化起来
+
+5.Master 如果决定接收注册的Worker，首先会创建 WorkerInfo 对象来保存注册的 Worker 的信息：
+然后调用 registerWorker 来执行具体的注册的过程，如果 Worker 状态是 DEAD 的状态则直接过滤掉，
+对于 UNKNOWN 状态的内容会调用 removeWorker 方法来进行清理（包括清理该worker下的 Executors 和驱动程序。
+
+6.注册的时候会先注册 Driver 然后再注册 Application
+==========================================================================================================
+
+Master 处理 Driver 狀态变换
+
+Master 對 Driver 和 Executor 狀態變化的處理，只有 Driver 的状态发生变发就直接调用 removeDriver 方法
+
+case DriverStateChanged(driverId, state, exception) =>
+      state match {
+        case DriverState.ERROR | DriverState.FINISHED | DriverState.KILLED | DriverState.FAILED =>
+          removeDriver(driverId, state, exception)
+        case _ =>
+          throw new Exception(s"Received unexpected state update for driver $driverId: $state")
+      }
+
+
+private def removeDriver(
+      driverId: String,
+      finalState: DriverState,
+      exception: Option[Exception]) {
+    drivers.find(d => d.id == driverId) match {
+      case Some(driver) =>
+        logInfo(s"Removing driver: $driverId")
+        drivers -= driver
+        if (completedDrivers.size >= RETAINED_DRIVERS) {
+          val toRemove = math.max(RETAINED_DRIVERS / 10, 1)
+          completedDrivers.trimStart(toRemove)
+        }
+        completedDrivers += driver
+        persistenceEngine.removeDriver(driver)
+        driver.state = finalState
+        driver.exception = exception
+        driver.worker.foreach(w => w.removeDriver(driver))
+        schedule()
+      case None =>
+        logWarning(s"Asked to remove unknown driver: $driverId")
+    }
+  }
+
+--------------------------------------------------------------------------------------------------------------
+Master 处理 Executor 狀态变换
+
+首先是查询一次有没有这个 Executor 注册的信息
+case ExecutorStateChanged(appId, execId, state, message, exitStatus) =>
+      val execOption = idToApp.get(appId).flatMap(app => app.executors.get(execId))
+      execOption match {
+        case Some(exec) =>
+          val appInfo = idToApp(appId)
+          val oldState = exec.state
+          exec.state = state
+
+          if (state == ExecutorState.RUNNING) {
+            assert(oldState == ExecutorState.LAUNCHING,
+              s"executor $execId state transfer from $oldState to RUNNING is illegal")
+            appInfo.resetRetryCount()
+          }
+
+          exec.application.driver.send(ExecutorUpdated(execId, state, message, exitStatus, false))
+
+          if (ExecutorState.isFinished(state)) {
+            // Remove this executor from the worker and app
+            logInfo(s"Removing executor ${exec.fullId} because it is $state")
+            // If an application has already finished, preserve its
+            // state to display its information properly on the UI
+            if (!appInfo.isFinished) {
+              appInfo.removeExecutor(exec)
+            }
+            exec.worker.removeExecutor(exec)
+
+            val normalExit = exitStatus == Some(0)
+            // Only retry certain number of times so we don't go into an infinite loop.
+            // Important note: this code path is not exercised by tests, so be very careful when
+            // changing this `if` condition.
+            if (!normalExit
+                && appInfo.incrementRetryCount() >= MAX_EXECUTOR_RETRIES
+                && MAX_EXECUTOR_RETRIES >= 0) { // < 0 disables this application-killing path
+              val execs = appInfo.executors.values
+              if (!execs.exists(_.state == ExecutorState.RUNNING)) {
+                logError(s"Application ${appInfo.desc.name} with ID ${appInfo.id} failed " +
+                  s"${appInfo.retryCount} times; removing it")
+                removeApplication(appInfo, ApplicationState.FAILED)
+              }
+            }
+          }
+          schedule()
+        case None =>
+          logWarning(s"Got status update for unknown executor $appId/$execId")
+      }
+
+Executor 掛掉的時候系統會進行一定次數的重啟（最多重試10次）
+
+def removeApplication(app: ApplicationInfo, state: ApplicationState.Value) {
+    if (apps.contains(app)) {
+      logInfo("Removing app " + app.id)
+      apps -= app
+      idToApp -= app.id
+      endpointToApp -= app.driver
+      addressToApp -= app.driver.address
+      if (reverseProxy) {
+        webUi.removeProxyTargets(app.id)
+      }
+      if (completedApps.size >= RETAINED_APPLICATIONS) {
+        val toRemove = math.max(RETAINED_APPLICATIONS / 10, 1)
+        completedApps.take(toRemove).foreach { a =>
+          applicationMetricsSystem.removeSource(a.appSource)
+        }
+        completedApps.trimStart(toRemove)
+      }
+      completedApps += app // Remember it in our history
+      waitingApps -= app
+
+      for (exec <- app.executors.values) {
+        killExecutor(exec)
+      }
+      app.markFinished(state)
+      if (state != ApplicationState.FINISHED) {
+        app.driver.send(ApplicationRemoved(state.toString))
+      }
+      persistenceEngine.removeApplication(app)
+      schedule()
+
+      // Tell all workers that the application has finished, so they can clean up any app state.
+      workers.foreach { w =>
+        w.endpoint.send(ApplicationFinished(app.id))
+      }
+    }
+  }
+
+
+
+
+
+
+
+
+

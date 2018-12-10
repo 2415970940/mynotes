@@ -1,0 +1,217 @@
+{"name":"mj","score":99}
+{"name":"mg","score":76}
+{"name":"ff","score":68}
+
+
+package com.mj.study.sql;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.SQLContext;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+
+import scala.Function1;
+import scala.Tuple2;
+
+public class JSONDataSource {
+	public static void main(String[] args) {
+		SparkConf conf=new SparkConf()
+				.setAppName("JSONDataSource")
+				.setMaster("local");
+        JavaSparkContext sc=new JavaSparkContext(conf);
+        SQLContext sqlContext=new SQLContext(sc);
+        DataFrame df = sqlContext.read().json("H:/spark/spark-study/score.json");
+        
+        df.registerTempTable("stu_scores");
+        DataFrame niceScore = sqlContext.sql("select name,score from stu_scores where score>70");
+        
+        List<String> niceStudents=niceScore.javaRDD().map(new Function<Row, String>() {
+
+			@Override
+			public String call(Row v1) throws Exception {
+				// TODO Auto-generated method stub
+				return v1.getString(0);
+			}
+		}).collect();
+        
+        List<String> studentInfo=new ArrayList<String>();
+        studentInfo.add("{\"name\":\"mj\",\"age\":18}");
+        studentInfo.add("{\"name\":\"mg\",\"age\":17}");
+        studentInfo.add("{\"name\":\"ff\",\"age\":19}");
+        JavaRDD<String> stuInfoRDD=sc.parallelize(studentInfo);
+        
+        DataFrame dfInfo=sqlContext.read().json(stuInfoRDD);
+        
+        dfInfo.registerTempTable("student_info");
+        String sql="select name,age from student_info where name in (";
+        for (int i = 0; i < niceStudents.size(); i++) {
+			sql+="'"+niceStudents.get(i)+"'";
+			if (i<niceStudents.size()-1) {
+				sql+=",";
+			}
+		}
+        sql+=")";
+        
+        System.out.println(sql);
+        
+        DataFrame niceInfo=sqlContext.sql(sql);
+        
+        JavaPairRDD<String, Tuple2<Integer, Integer>> goodStudents = niceScore.javaRDD().mapToPair(new PairFunction<Row, String, Integer>() {
+
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Tuple2<String, Integer> call(Row row) throws Exception {
+//				System.out.println(row.getString(0)+row.getInt(1));
+				return new Tuple2<String, Integer>(row.getString(0)
+						,Integer.valueOf(String.valueOf(row.getLong(1))));
+			}
+		}).join(niceInfo.javaRDD().mapToPair(new PairFunction<Row, String, Integer>() {
+
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Tuple2<String, Integer> call(Row row) throws Exception {
+				return new Tuple2<String, Integer>(row.getString(0)
+						,Integer.valueOf(String.valueOf(row.getLong(1))));
+			}
+		}));
+        
+        JavaRDD<Row> goodStudentsRowRDD=goodStudents.map(new Function<Tuple2<String,Tuple2<Integer,Integer>>, Row>() {
+
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Row call(Tuple2<String, Tuple2<Integer, Integer>> v1) throws Exception {
+				System.out.println(v1._1+v1._2._1+v1._2._2);
+				// TODO Auto-generated method stub
+				return RowFactory.create(v1._1,Integer.valueOf(v1._2._1),Integer.valueOf(v1._2._2));
+			}
+		});
+        
+        List<StructField> structFields=new ArrayList<StructField>();
+        structFields.add(DataTypes.createStructField("name", DataTypes.StringType, true));
+        structFields.add(DataTypes.createStructField("score", DataTypes.IntegerType, true));
+        structFields.add(DataTypes.createStructField("age", DataTypes.IntegerType, true));
+        
+        StructType createStructType = DataTypes.createStructType(structFields);
+        
+        DataFrame stu_good=sqlContext.createDataFrame(goodStudentsRowRDD, createStructType);
+        
+        stu_good.write().format("json").save("H:/spark/spark-study/goodStudents");
+        
+	}
+
+}
+
+hive sql 案例 查询分数大于80分的同学
+注意将hive-env.xml拷贝到spark/conf目录下。mysql-connector-java.jar拷贝到spark/lib
+
+public class HiveDataSource {
+    public static void main(String[] args) {
+        SparkConf conf=new SparkConf().setAppName("HiveDataSource");
+        JavaSparkContext sc=new JavaSparkContext(conf);
+        // 创建HiveContext  注意这里接收的是SparkContext   不是 JavaSparkContext
+        HiveContext hiveContext=new HiveContext(sc.sc());
+        //第一个功能，使用HiveContext的Sql()/Hql
+        hiveContext.sql("DROP TABLE IF EXISTS student_info");
+
+       hiveContext.sql("CREATE  TABLE IF NOT EXISTS student_info (name STRING ,age INT)");
+        System.out.println("============================create table success");
+        //将学生的基本信息导入到StudentInfo  表
+        sqlContext.sql("LOAD DATA LOCAL INPATH '/data/hive/student_info/student_info.txt' INTO TABLE  student_info");
+
+
+
+
+        hiveContext.sql("DROP TABLE IF EXISTS student_scores");
+
+       hiveContext.sql("CREATE  TABLE IF NOT EXISTS student_scores (name STRING ,score INT)");
+        //将学生的基本分数导入到StudentInfo  表
+        hiveContext.sql("LOAD DATA LOCAL INPATH '/data/hive/student_info/student_scores.txt' INTO TABLE  student_scores");
+        //第二个功能接着将sql  返回的DataFrame  用于查询
+        //执行sql  关联两张表查询大于80分的学生
+        Dataset goodStudentDS=hiveContext.sql("SELECT ss.name ,s1.age,ss.score from student_info s1 JOIN  student_scores ss ON s1.name=ss.name WHERE   ss.score>=80");
+
+
+
+        //第三个功能，可以将 DataFrame  中的数据 理论上来说DataFrame  对应的RDD  数据  是ROW  即可
+        //将DataFrame  保存到Hive  表中·
+        //  接着将数据保存到good_student_info  中
+        hiveContext.sql("DROP TABLE IF EXISTS good_student_info");
+        System.out.println("create table success");
+        goodStudentDS.write().saveAsTable("good_student_info");
+        //  第四个功能 针对  good_student_info  表  直接创建   DataSet
+        Dataset<Row> goodStudentDSRows=sqlContext.tables("good_student_info");
+        Row[] goodStudentRows=goodStudentDSRows.collect();
+        for (Row goodStudentRow:goodStudentRows){
+            System.out.println(goodStudentRow);
+        }
+        System.out.println(goodStudentRows);
+        sc.close();
+    }
+}
+
+下面给出scala 示例：
+object HiveDataSource {
+  def main(args: Array[String]): Unit = {
+    val conf = new SparkConf().setAppName("HiveDataSource")
+    val sc = new SparkContext(conf)
+    // 创建HiveContext  注意这里接收的是SparkContext   不是 JavaSparkContext
+    val sqlContext = new HiveContext(sc)
+    //第一个功能，使用HiveContext的Sql()/Hql
+    sqlContext.sql("DROP TABLE IF EXISTS student_info")
+    sqlContext.sql("CREATE  TABLE IF NOT EXISTS student_info (name STRING ,age INT)")
+    System.out.println("============================create table success")
+    //将学生的基本信息导入到StudentInfo  表
+    sqlContext.sql("LOAD DATA LOCAL INPATH '/data/hive/student_info/student_info.txt' INTO TABLE  student_info")
+    sqlContext.sql("DROP TABLE IF EXISTS student_scores")
+    sqlContext.sql("CREATE  TABLE IF NOT EXISTS student_scores (name STRING ,score INT)")
+    //将学生的基本分数导入到StudentInfo  表
+    sqlContext.sql("LOAD DATA LOCAL INPATH '/data/hive/student_info/student_scores.txt' INTO TABLE  student_scores")
+    //第二个功能接着将sql  返回的DataFrame  用于查询
+    //执行sql  关联两张表查询大于80分的学生
+    val goodStudentDS = sqlContext.sql("SELECT ss.name ,s1.age,ss.score from student_info s1 JOIN  student_scores ss ON s1.name=ss.name WHERE   ss.score>=80")
+    //第三个功能，可以将 DataFrame  中的数据 理论上来说DataFrame  对应的RDD  数据  是ROW  即可
+    //将DataFrame  保存到Hive  表中·
+    //  接着将数据保存到good_student_info  中
+    sqlContext.sql("DROP TABLE IF EXISTS good_student_info")
+    System.out.println("create table success")
+    goodStudentDS.write.saveAsTable("good_student_info")
+    //  第四个功能 针对  good_student_info  表  直接创建   DataSet
+    val goodStudentDSRows = sqlContext.tables("good_student_info")
+    val goodStudentRows = goodStudentDSRows.collect
+    for (goodStudentRow <- goodStudentRows) {
+      System.out.println(goodStudentRow)
+    }
+  }
+}
+
+
+
+
+
+
+

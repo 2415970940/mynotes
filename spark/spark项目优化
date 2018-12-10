@@ -1,0 +1,89 @@
+一、主要优化：
+1.分配更多资源
+2.设置并行度
+SparkConf conf = new SparkConf().set("spark.default.parallelism", "500")
+3.RDD架构重构与优化
+	复用RDD
+	公共RDD一定要实现持久化 cache persist
+	数据序列化
+4.shuffle
+	new SparkConf().set("spark.shuffle.consolidateFiles", "true")
+
+	spark.shuffle.file.buffer，默认32k
+	spark.shuffle.memoryFraction，0.2
+
+	spark.shuffle.manager：hash、sort、tungsten-sort（自己实现内存管理）
+	spark.shuffle.sort.bypassMergeThreshold：200
+
+SortShuffleManager与HashShuffleManager两点不同：
+
+1、SortShuffleManager会对每个reduce task要处理的数据，进行排序（默认的）。
+
+2、SortShuffleManager会避免像HashShuffleManager那样，默认就去创建多份磁盘文件。一个task，只会写入一个磁盘文件，不同reduce task的数据，用offset来划分界定。
+
+自己可以设定一个阈值，默认是200，当reduce task数量少于等于200；map task创建的输出文件小于等于200的；最后会将所有的输出文件合并为一份文件。
+
+这样做的好处，就是避免了sort排序，节省了性能开销。而且还能将多个reduce task的文件合并成一份文件。节省了reduce task拉取数据的时候的磁盘IO的开销。
+
+	hash、sort、tungsten-sort。如何来选择？
+
+	1、需不需要数据默认就让spark给你进行排序？就好像mapreduce，默认就是有按照key的排序。如果不需要的话，其实还是建议搭建就使用最基本的HashShuffleManager，因为最开始就是考虑的是不排序，换取高性能；
+
+	2、什么时候需要用sort shuffle manager？如果你需要你的那些数据按key排序了，那么就选择这种吧，而且要注意，reduce task的数量应该是超过200的，这样sort、merge（多个文件合并成一个）的机制，才能生效把。但是这里要注意，你一定要自己考量一下，有没有必要在shuffle的过程中，就做这个事情，毕竟对性能是有影响的。
+
+	3、如果你不需要排序，而且你希望你的每个task输出的文件最终是会合并成一份的，你自己认为可以减少性能开销；可以去调节bypassMergeThreshold这个阈值，比如你的reduce task数量是500，默认阈值是200，所以默认还是会进行sort和直接merge的；可以将阈值调节成550，不会进行sort，按照hash的做法，每个reduce task创建一份输出文件，最后合并成一份文件。（一定要提醒大家，这个参数，其实我们通常不会在生产环境里去使用，也没有经过验证说，这样的方式，到底有多少性能的提升）
+
+	4、如果你想选用sort based shuffle manager，而且你们公司的spark版本比较高，是1.5.x版本的，那么可以考虑去尝试使用tungsten-sort shuffle manager。看看性能的提升与稳定性怎么样。
+
+
+二、次要优化
+1、广播变量
+2.数据序列化  kryo  fastutil
+.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+.registerKryoClasses(new Class[]{CategorySortKey.class})
+3.本地化等待时间
+PROCESS_LOCAL：进程本地化，代码和数据在同一个进程中，也就是在同一个executor中；计算数据的task由executor执行，数据在executor的BlockManager中；性能最好
+NODE_LOCAL：节点本地化，代码和数据在同一个节点中；比如说，数据作为一个HDFS block块，就在节点上，而task在节点上某个executor中运行；或者是，数据和task在一个节点上的不同executor中；数据需要在进程间进行传输
+NO_PREF：对于task来说，数据从哪里获取都一样，没有好坏之分
+RACK_LOCAL：机架本地化，数据和task在一个机架的两个节点上；数据需要通过网络在节点之间进行传输
+ANY：数据和task可能在集群中的任何地方，而且不在一个机架中，性能最差
+
+spark.locality.wait.process
+spark.locality.wait.node
+spark.locality.wait.rack
+
+new SparkConf().set("spark.locality.wait", "10")
+
+4.JVM
+JVM调优的第一个点：降低cache操作的内存占比
+spark.storage.memoryFraction，0.6 -> 0.5 -> 0.4 -> 0.2
+
+5.堆外内存
+--conf spark.yarn.executor.memoryOverhead=2048
+
+executor，优先从自己本地关联的BlockManager中获取某份数据
+
+如果本地block manager没有的话，那么会通过TransferService，去远程连接其他节点上executor的block manager去获取
+--conf spark.core.connection.ack.wait.timeout=300
+
+6.算子调优
+MapPartitions操作
+coalesce算子 coalesce(numPartitions:Int，shuffle:Boolean=false)  合并分区
+foreachPartition算子
+repartition算子 增加分区
+
+7.shuffle reduce缓存
+spark.reducer.maxSizeInFlight，48
+spark.reducer.maxSizeInFlight，24
+
+JVM
+spark.shuffle.io.maxRetries 60
+spark.shuffle.io.retryWait 60s
+
+
+
+20台  30G   12core
+600G 240
+每天20G到30G
+一个spark处理10~20G，60个execute，4G，3core
+100

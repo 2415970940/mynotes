@@ -1,0 +1,195 @@
+spark核心架构
+
+
+1、Application
+2、spark-submit
+3、Driver
+4、SparkContext
+5、Master
+6、Worker
+7、Executor
+8、Job
+9、DAGScheduler
+10、TaskScheduler
+11、ShufieMap Task and ResultTask
+
+
+spark-submit Application->driver(driverActor进程，standalone)->代码->sparkConf->SparkContext
+->DAGScheduler->TaskScheduler->Master(注册Application,资源调度算法)->Worker->executor（进程）
+->反注册TaskScheduler
+多次tranformation->每次action创建一个job->DAGScheduler(划分job为多个stage，每个stage创建一个taskset，算法)->
+TaskScheduler->executor->线程池->TaskRunner封装一个task
+
+宽依赖与窄依赖
+
+Spark中RDD的高效与DAG图有着莫大的关系，在DAG调度中需要对计算过程划分stage，而划分依据就是RDD之间的依赖关系
+
+窄依赖是指父RDD的每个分区只被子RDD的一个分区所使用，子RDD分区通常对应常数个父RDD分区(O(1)，与数据规模无关)
+相应的，宽依赖是指父RDD的每个分区都可能被多个子RDD分区所使用，子RDD分区通常对应所有的父RDD分区(O(n)，与数据规模有关)
+
+
+
+
+Spark提交模式
+
+参数名				格式				参数说明
+--master				MASTER_URL		如spark://host:port, mesos://host:port, yarn,  yarn-cluster,yarn-client, local
+--deploy-mode			DEPLOY_MODE		Client或者master，默认是client
+--class				CLASS_NAME		应用程序的主类
+--name				NAME			应用程序的名称
+--jars				JARS				逗号分隔的本地jar包，包含在driver和executor的classpath下
+--packages								包含在driver和executor的classpath下的jar包逗号分隔的”groupId:artifactId：version”列表
+--exclude-packages						用逗号分隔的”groupId:artifactId”列表
+--repositories							逗号分隔的远程仓库
+--py-files				PY_FILES			逗号分隔的”.zip”,”.egg”或者“.py”文件，这些文件放在python app的PYTHONPATH下面
+--files				FILES			逗号分隔的文件，这些文件放在每个executor的工作目录下面
+--conf				PROP=VALUE		固定的spark配置属性，默认是conf/spark-defaults.conf
+--properties-file			FILE				加载额外属性的文件
+--driver-memory			MEM				Driver内存，默认1G
+--driver-java-options						传给driver的额外的Java选项
+--driver-library-path						传给driver的额外的库路径
+--driver-class-path						传给driver的额外的类路径
+--executor-memory		MEM				每个executor的内存，默认是1G
+--proxy-user			NAME			模拟提交应用程序的用户
+--driver-cores			NUM				Driver的核数，默认是1。这个参数仅仅在standalone集群deploy模式下使用
+--supervise							Driver失败时，重启driver。在mesos或者standalone下使用
+--verbose								打印debug信息
+--total-executor-cores		NUM				所有executor总共的核数。仅仅在mesos或者standalone下使用
+--executor-core			NUM				每个executor的核数。在yarn或者standalone下使用
+--driver-cores			NUM				Driver的核数，默认是1。在yarn集群模式下使用
+--queue				QUEUE_NAME		队列名称。在yarn下使用
+--num-executors		NUM				启动的executor数量。默认为2。在yarn下使用
+
+
+1、Spark内核架构,其实就是第一种模式,standalone模式,基于Spark自己的Master-Worker集群。
+
+# Run application locally on 8 cores(本地模式8核)
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master local[8] \
+  /path/to/examples.jar \
+  100
+
+# Run on a Spark standalone cluster in client deploy mode(standalone client模式)
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master spark://207.184.161.138:7077 \
+  --executor-memory 20G \
+  --total-executor-cores 100 \
+  /path/to/examples.jar \
+  1000
+
+# Run on a Spark standalone cluster in cluster deploy mode with supervise(standalone cluster模式使用supervise)
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master spark://207.184.161.138:7077 \
+  --deploy-mode cluster \
+  --supervise \
+  --executor-memory 20G \
+  --total-executor-cores 100 \
+  /path/to/examples.jar \
+  1000
+
+2、第二种,是基于YARN的yarn-cluster模式。
+spark-submit->yarn->请求resourceManager->启动applicationMaster（在NodeManager）->AM向RM申请Container->AM获得Container->AM连接其他NM
+->NM启动Executor->executor反向注册AM
+
+# Run on a YARN cluster(YARN cluster模式)
+export HADOOP_CONF_DIR=XXX
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master yarn \
+  --deploy-mode cluster \  # can be client for client mode
+  --executor-memory 20G \
+  --num-executors 50 \
+  /path/to/examples.jar \
+  1000
+
+3、第三种,是基于YARN的yarn-client模式。
+spark-submit->yarn->请求resourceManager->启动applicationMaster（在NodeManager，这里的AM其实是ExecutorLanucher）->AM向RM申请Container->AM获得Container->AM连接其他NM
+->NM启动Executor->executor反向注册本地Driver
+
+4、如果,你要切换到第二种和第三种模式,很简单,将我们之前用于提交spark应用程序的spark-submit脚本,
+  加上--master参数,设置为yarn-cluster,或yarn-client,即可。如果你没设置,那么,就是standalone模式。
+
+num-executors
+	该参数用于设置Spark作业总共要用多少个Executor进程来执行。
+	每个Spark作业的运行一般设置50~100个左右的Executor进程比较合适
+
+executor-memory
+	该参数用于设置每个Executor进程的内存。Executor内存的大小，很多时候直接决定了Spark作业的性能，
+		而且跟常见的JVM OOM异常，也有直接的关联。
+	每个Executor进程的内存设置4G~8G较为合适
+	num-executors乘以executor-memory，是不能超过队列的最大内存量的
+	如果你是跟团队里其他人共享这个资源队列，那么申请的内存量最好不要超过资源队列最大总内存的1/3~1/2
+executor-cores
+	该参数用于设置每个Executor进程的CPU core数量
+	因为每个CPU core同一时间只能执行一个task线程
+	Executor的CPU core数量设置为2~4个较为合适
+	如果是跟他人共享这个队列，那么num-executors * executor-cores不要超过队列总CPU core的1/3~1/2左右比较合适
+
+driver-memory
+	该参数用于设置Driver进程的内存。
+	Driver的内存通常来说不设置，或者设置1G左右应该就够了。唯一需要注意的一点是，如果需要使用collect算子将RDD的数据全部拉取到Driver上进行处理，
+	那么必须确保Driver的内存足够大，否则会出现OOM内存溢出的问题。
+
+spark.default.parallelism
+	该参数用于设置每个stage的默认task数量。
+	Spark作业的默认task数量为500~1000个较为合适。很多同学常犯的一个错误就是不去设置这个参数，那么此时就会导致Spark自己根据底层HDFS的block数量
+	Spark官网建议的设置原则是，设置该参数为num-executors * executor-cores的2~3倍较为合适
+
+spark.storage.memoryFraction
+该参数用于设置RDD持久化数据在Executor内存中能占的比例，默认是0.6。
+
+spark.shuffle.memoryFraction
+该参数用于设置shuffle过程中一个task拉取到上个stage的task的输出后，进行聚合操作时能够使用的Executor内存的比例，默认是0.2
+
+以下是一份spark-submit命令的示例，大家可以参考一下，并根据自己的实际情况进行调节：
+./bin/spark-submit \
+  --master yarn-cluster \
+  --num-executors 100 \
+  --executor-memory 6G \
+  --executor-cores 4 \
+  --driver-memory 1G \
+  --conf spark.default.parallelism=1000 \
+  --conf spark.storage.memoryFraction=0.5 \
+  --conf spark.shuffle.memoryFraction=0.3 \
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

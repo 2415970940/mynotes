@@ -1,0 +1,112 @@
+1 基于Receiver 的方式
+这种方式使用receiver 来获取数据，Receiver 是使用kafka 的高层次Consumer Api 来实现的，receiver 从kafka 中获取的数据都是存储在Spark Executor 的内存中的，然后Spark Streaming 启动的job 会去处理那些数据。 
+然而在默认的配置下 这种方式可能会因为底层的失败而丢失数据，如果要启动高可用的可靠机制，让数据零丢失，就必须启动Spark Streaming 的预写日志机制 ，该机制会同步地接收到kafka 数据写入分布式文件系统比如hdfs 上的预写日志中，所以即便底层节点出现了失败，也可以使用预写日志及进行恢复。
+
+kafka中的topic的partition，与spark中的RDD 的partition是没有关系的，所以在kafkaUtils.createStream() 中，提高partition 的数量，只会怎放假一个Receiver中读取数据partition的线程的数量。不会增加spark 
+处理数据的并行度。
+
+可以创建多个kafka 输入的DStream ，使用不通的consumer group 和topic 来通过receiver 并行的接收数据
+
+如果基于容错的文件系统，比如hdfs 启用了预写日志机制，接收到的数据都会被复制一份到预写的日志中。 
+
+bin/kafka-topics.sh --zookeeper 192.168.1.132:2181,192.168.1.132:2181,192.168.1.132:2181 --create --replication-factor 1 --partitions 1 --topic wordcount
+bin/kafka-console-producer.sh --broker-list 192.168.1.132:9092,192.168.1.132:9092,192.168.1.132:9092 --topic wordcount
+
+
+下面给出java 示例：
+
+public class KAFKAWorldCount {
+    public static void main(String[] args) throws InterruptedException {
+        SparkConf conf=new SparkConf().setMaster("local[2]").setAppName("KAFKAWorldCount");
+        JavaStreamingContext jssc=new JavaStreamingContext(conf, Durations.seconds(5));
+        Map<String,Integer> topicThreadMap=new HashMap<String,Integer>();
+        topicThreadMap.put("wordcount", 1);
+        JavaPairReceiverInputDStream<String, String> lines = KafkaUtils.createStream(jssc, 
+                "192.168.1.132:2181,192.168.1.132:2181,192.168.1.132:2181", 
+                "CustomerGroups", 
+                topicThreadMap);
+        JavaDStream<String> worlds=lines.flatMap(new FlatMapFunction<Tuple2<String, String>, String>() {
+            @Override
+            public Iterator<String> call(Tuple2<String, String> stringStringTuple2) throws Exception {
+                return Arrays.asList(stringStringTuple2._2.split(" ")).iterator();
+            }
+        });
+        JavaPairDStream<String,Integer> linePair=worlds.mapToPair(new PairFunction<String, String, Integer>() {
+            @Override
+            public Tuple2<String, Integer> call(String s) throws Exception {
+                return new Tuple2<String, Integer>(s,1);
+            }
+        });
+
+        JavaPairDStream<String,Integer> lineWorldCount=linePair.reduceByKey(new Function2<Integer, Integer, Integer>() {
+            @Override
+            public Integer call(Integer v1, Integer v2) throws Exception {
+                return v1+v2;
+            }
+        });
+        lineWorldCount.print();
+        jssc.start();
+        jssc.awaitTermination();
+        jssc.stop();
+        jssc.close();
+    }
+}
+--------------------- 
+2 基于Direct 的方式
+这种不基于Receiver 的直接方式 能够保证更加健壮的机制，替代掉使用Receiver 来接收数据后，
+从这种方式会周期性地查询kafka ,来获得每个topic+partition 的最新的offset 从而定义每个batch 的offset 的范围，
+当处理数据的job 启动的时候就会使用kafka 的简单的consumer api 来获取kafka 指定的offset 范围的数据
+
+这种方式有如下优点： 
+1.简化并行读取：如果要读取多额partition 不需要创建多个DStream 然后对他们进行union 的操作。
+spark 会创建跟kafka partition 一样多的RDD partition 并且会并行从kafka 中读取数据，所以kakfa partition 和RDD partition 之间，有一个一对一的映射关系。 
+2.高性能：如果要保证零数据丢失，在基于receiver 的方式种需要开启WAL 机制。这种方式其实效率低下，因为数据实际上被复制了两份，kafka 自己本地就有高可靠的机制，会对数据复制一份，而这里又会复制一份到WAL 中，
+而基于direct 的方式，不依赖Receiver ，不需要开启WAL 机制，只要kafka 中做了数据的复制，那么就可以通过kafka 的副本进行恢复。 
+3.一次且仅一次的事务机制 
+基于receiver 的方式，是使用kafka 的高阶api 来zookeeper 中保存消费过的offset 。这是消费kafka 数据的传统方式，这种方式配合着wal 机制可以保证数据零丢失的高可靠性，
+但是却无法保证数据被处理一次且仅一次，可能会处理两次因为spark和zookeeepr 之间是不同步的 
+基于direct 的方式使用kafka 的简单的api spark Streaming 自己就负责追踪消费的offset 并保存在checkpoint 中spark 自己一定是同步的，
+因此可以保证消费因此且仅消费一次。 
+下面给出java 示例：
+
+public class KAFKADriectWorldCount {
+    public static void main(String[] args) throws InterruptedException {
+        SparkConf conf=new SparkConf().setMaster("local[2]").setAppName("KAFKAWorldCount");
+        JavaStreamingContext jssc=new JavaStreamingContext(conf, Durations.seconds(5));
+        Map<String,String> map=new HashMap<>();
+        map.put("metadata.broker.list","192.168.1.132:9092,192.168.1.132:9092,192.168.1.132:9092");
+        Set<String> toPics=new HashSet<>();
+        toPics.add("worldCount");
+        JavaPairInputDStream<String,String> lines= KafkaUtils.createDirectStream(jssc,
+                String.class,
+                String.class,
+                StringDecoder.class,
+                StringDecoder.class,
+                map,
+                toPics);
+        JavaDStream<String> worlds=lines.flatMap(new FlatMapFunction<Tuple2<String, String>, String>() {
+            @Override
+            public Iterator<String> call(Tuple2<String, String> stringStringTuple2) throws Exception {
+                return Arrays.asList(stringStringTuple2._2.split(" ")).iterator();
+            }
+        });
+        JavaPairDStream<String,Integer> linePair=worlds.mapToPair(new PairFunction<String, String, Integer>() {
+            @Override
+            public Tuple2<String, Integer> call(String s) throws Exception {
+                return new Tuple2<String, Integer>(s,1);
+            }
+        });
+
+        JavaPairDStream<String,Integer> lineWorldCount=linePair.reduceByKey(new Function2<Integer, Integer, Integer>() {
+            @Override
+            public Integer call(Integer v1, Integer v2) throws Exception {
+                return v1+v2;
+            }
+        });
+        lineWorldCount.print();
+        jssc.start();
+        jssc.awaitTermination();
+        jssc.stop();
+        jssc.close();
+    }
+}

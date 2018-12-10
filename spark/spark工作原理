@@ -1,0 +1,242 @@
+1.分布式
+2.基于内存
+3.迭代式计算
+
+RDD
+1.RDD是Spark提供的核心抽象,全称为Resilient Distributed Dataset,即弹性分布式数据集。
+
+2、RDD在抽象上来说是一种元素集合,包合了数据。它是被分区的,分为多个分区,每个分区分布在集群中的不同节点上,从而让RDD中的数据可以被并行操作。(分布式数据集）
+
+3、RDD通常通过Hadoop上的文件,即HDFS文件或者Hive表,来进行创建;有时也可以通过应用程序中的集合来创建。
+
+4、RDD最重要的特性就是,提供了容错性,可以自动从节点失败中恢复过来。
+即如果某个节点上的RDD partition,因为节点故障,导致数据丢历,那么RDD会自动通过自己的数据来源重新计算该partition。这一切对使用者是透明的。
+
+5、RDD的数据默认情况下存放在内存中的,但是在内存资源不足时,Spark会自动将RDD数据写入磁盘。（弹性）
+
+第一个Spark程序
+package cn.spark.study.core;
+
+import java.util.Arrays;
+
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.Function2;
+import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.api.java.function.VoidFunction;
+
+import scala.Tuple2;
+
+/*
+  * 本地测试程序
+ * 
+ */
+
+public class WordCountLocal {
+	public static void main(String[] args) {
+	//	编写spark应用程序
+	//第一步：创建sparkConf对象，设置Spark应用的配置信息
+	//使用setMaster()可以设置spark应用程序要连接的spark集群的master节点的url
+	//但是如果设置为local则代表在本地运行
+		SparkConf conf = new SparkConf()
+				.setAppName("WordCountLocal")
+				.setMaster("local");
+	//第二步:创建JavaSparkContext对象
+		//在spark中,SparkContext是spark所有功能的一个入口,你无论是用Java、scala,甚至是python编写
+		//都必须要有一个SparkContext,它的主要作用,包括初始化spark应用程序所需的一些核心组件,包括
+		//调度器(DAGSchedule、TaskScheduler),还会去到Spark Master节点上进行注册,等等
+
+		//一句话,SparkContext,是spark应用中,可以说是最最重要的一个对象
+
+		//但是呢,在spark中,编写不同类型的spark应用程序,使用的SparkContext是不同的
+		//如果使用scala,使用的就是原生的SparkContext对象
+		//但是如果使用Java,那么就是JavaSparkContext对象
+		//如果是开发spark SQL程序,那么就是SQLContext、HiveContext
+		//如果是开发spark Streaming程序,那么就是他独有的SparkContext
+		
+		JavaSparkContext sc = new JavaSparkContext(conf);
+	//第三步要针对输入源（hdfs文件，本地文件等等），创建一个初始的RDD
+		//输入源中的数据会打散,分配到RDD的每个partition中,从而形成一个初始的分布式的数据集
+		//SparkContext中,用于根据文件类型的输入源创建RDD的方法,叫做textFile()方法
+		//在Java中，创建的普通RDD，都叫做JavaRDD
+		//如果是hdfs或者本地文件创建的RDD，每个元素相当文件的一行，也就是元素概念
+		
+		JavaRDD<String> lines = sc.textFile("H://spark//spark-study//hello.txt");
+	//第四步：对初始化RDD进行transformation操作，也就是一些计算操作
+		//通常操作会通过创建function,并配合RDD的map、flatmap等算子来执行
+		//function,通常,如果比较简单,则创建指定function的匿名内部类
+		//但是如果function比较复杂,则会单独创建一个类，作为实现这个function接口的类		
+		
+		//将每行拆成一个单词
+		//FlatMapFunction有两个泛型参数，分别是输入和输出类型
+		//flatmap算子的作用,其实就是,将RDD的一个元素,给拆分成一个或多个元素
+		
+
+	
+		JavaRDD<String> words =lines.flatMap(new FlatMapFunction<String, String>() {
+
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Iterable<String> call(String line) throws Exception {
+				// TODO Auto-generated method stub
+				return Arrays.asList(line.split(" "));
+			}
+		});
+		//映射为（单词，1）
+		//mapToPair 就是将其映射为（k,v）,Tuple2类型。这里的Tuple2就是scala类型
+		//mapToPair要与PairFunction匹配，第一泛型是输入，第二个和第三个是输出泛型，Tuple2
+		//JavaPairRDD两个泛型参数，对应Tuple2
+		JavaPairRDD<String, Integer> pairs = words.mapToPair(new PairFunction<String, String, Integer>() {
+
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Tuple2<String, Integer> call(String word) throws Exception {
+				// TODO Auto-generated method stub
+				return new Tuple2<String, Integer>(word, 1);
+			}
+			
+		});
+		//接着，以单词为key，统计出现的次数
+		//使用reduceByKey算子，对每个key对应的value进行reduce操作
+		
+		JavaPairRDD<String, Integer> wordCount=pairs.reduceByKey(new Function2<Integer, Integer, Integer>() {
+			
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Integer call(Integer v1, Integer v2) throws Exception {
+				// TODO Auto-generated method stub
+				return v1+v2;
+			}
+		});
+		//到此为止，通过几个spark算子操作，计算出单词出现次数		
+		//之前是我们使用的flatMap，mapToPair,reduceByKey操作，都叫做transformation操作
+		//transformation和action组合，才能运行spark应用
+		//接着，action操作，比如foreach来触发程序执行
+		wordCount.foreach(new VoidFunction<Tuple2<String,Integer>>() {
+			
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void call(Tuple2<String, Integer> wordCount) throws Exception {
+				// TODO Auto-generated method stub
+				System.out.println(wordCount._1+":"+wordCount._2);
+			}
+		});
+		sc.close();
+	}
+}
+
+
+如何使用spark-submit提交到spark集群进行执行
+(spark-submi常用参数说明,spark-submit其实就类似于hadoop的hadoop.jar命令)
+1.将spark.txt上传到spark1的：/usr/local/下
+ hadoop fs -put spark.txt /spark.txt
+ 查看方式：浏览器上spark1:50070下utilities-》Browse the file system
+ 2.根据pom.xml里的配置maven插件，对spark进行打包
+ 打包过程：右键项目-》run as-》run configurations-》Maven Build右击-》new-》Name:(起名字，如spark-study-java)->点击
+ browse workspace选择项目-》Goals输入clean package-Run
+ 最后生成spark-study-java-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+3. 将jar包上传到spark集群上，（我的位置root@spark1:/usr/local/spark-study/java/）
+4. 编写spark-submit脚本，然后执行脚本，提交到集群上
+wordcount.sh
+```
+/usr/local/spark/bin/spark-submit \
+--class cn.spark.study.core.WorkCountCluster \
+--num-executors 3 \
+--driver-memory 100m \
+--executor-memory 100m \
+--executor-cores 3 \
+/usr/local/spark-study/java/spark-study-java-0.0.1-SNAPSHOT-jar-with-dependencies.jar \
+```
+给sh文件权限，chmod 777 wordcount.sh
+5.执行./wordcount.sh
+浏览器可以查看（运行时可以看）http://spark1:4040
+
+spark架构原理
+
+driver->master->worker->executor进程->反注册driver->创建初始RDD
+->HDFS->worker->task线程->RDD partition
+
+
+创建RDD
+1、使用程序中的集合创建RDD,主要用于进行测试,可以在实际部署到集群运行之前,自己使用集合构造测试数据,来测试后面的spark应用的流程。
+
+2、使用本地文件创建RDD,主要用于临时性地处理一些存储了大量数据的文件。
+
+3、使用HDFS文件创建RDD,应该是最常用的生产环境处理方式,主要可以针对HDFS上存储的大数据,进行离线批处理操作。
+
+
+
+
+并行化集合创建RDD
+
+val arr=Array(1,2,3,4,5,6,7,8,9,10)
+val rdd=sc.parallelize(arr)
+val sum=rdd.reduce(_+_)
+使用本地文件创建RDD
+val rdd=sc.textFile("data.txt")
+使用HDFS文件创建RDD
+val lines=sc.textFile("H://spark//spark-study//spark.txt", 1)
+
+其他
+1、SparkContext.wholeTextFiles()方法,可以针对一个目录中的大量小文件,返回<filename,fileContent>组成的pair,作为一个PairRDD,而不是普通的RDD。普通的textFile()返回的RDD中,每个元素就是文件中的一行文本。
+2、SparkContext.sequenceFile[K,V]()方法,可以针对SequenceFile创建RDD,K和V泛型类型就是SequenceFile的key和value的类型。K和V要求必须是Hadoop的序列化类型,比如IntWritable、Text等。
+
+3、SparkContext.hadoopRDD()方法,对于Hadoop的自定义输入类型,可以创建RDD。该方法接收JobConf、InputFormatClass、Key和Value的Class.
+4、SparkContext.objectFile()方法,可以针对之前调用RDD.saveAsObjectFile()创建的对象序列化的文件,反序列化文件中的数据,并创建一个RDD。
+
+
+共享变量
+不使用共享变量，每个task都有变量
+共享变量，对每个节点，非task
+broadcast variable	每个节点 只读
+	int factor=3;
+	Broadcast<Integer> factorbroadcst=sc.broadcast(factor);//创建
+	factorbroadcst.value();//使用
+accumulator 对多个节点
+	Accumulator<Integer> sum = sc.accumulator(0);
+
+前3个
+数字比较 mapToPair ，map还原，take(3)
+
+每组的前3个
+groupByKey   mapToPair(里面排序)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

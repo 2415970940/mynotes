@@ -1,0 +1,219 @@
+本課主題
+Spark Worker 原理
+Worker 启动 Driver 源码鉴赏
+Worker 启动 Executor 源码鉴赏
+Worker 与 Master 的交互关系
+
+Worker 启动 Driver 源码鉴赏
+因为 Worker 中有消息的循环体，可以用来接收消息，接上一章介绍当 Master 把一个 LaunchDriver 发送到 Worker 的时候，
+Worker 接收这个 LaunchDriver 然后创建一個新的 DriverRunner 实例，我们这里重点研究 LaunchDriver，
+当启动 Driver 或者是 Executor 的时候，它必需是满足内存的要求的。当实际上不一定会满足 Core 的要求的，
+也就是说实际分配的 Core 可能比你期待的 Core 多、也有可能比它少 (为什么呢？) 
+
+case LaunchDriver(driverId, driverDesc) =>
+      logInfo(s"Asked to launch driver $driverId")
+      val driver = new DriverRunner(
+        conf,
+        driverId,
+        workDir,
+        sparkHome,
+        driverDesc.copy(command = Worker.maybeUpdateSSLSettings(driverDesc.command, conf)),
+        self,
+        workerUri,
+        securityMgr)
+      drivers(driverId) = driver
+      driver.start()
+
+      coresUsed += driverDesc.cores
+      memoryUsed += driverDesc.mem
+
+ 在这里首先创建一个 DriverRunner 的实例对象，然后把实例交给 drivers 数据结构 (HashMap[String, DriverRunner]) 来保存信息，
+ 这个数据结构很重要，因为在 Worker 下可能启动很多不同的 Executor，你可以理解 DriverRunner 为Driver 进程本身的一个proxy [代理模式]，
+ 调用它的start( ) 方法并记录一下 coreUsed 和 memoryUsed 的数据。
+
+Cluster 中的 Driver 失敗的時候，如果 Supervise 為 true，則启动該 Driver 的Worker 會負責重新启动該 Driver；
+private[deploy] class DriverRunner(
+    conf: SparkConf,
+    val driverId: String,
+    val workDir: File,
+    val sparkHome: File,
+    val driverDesc: DriverDescription,
+    val worker: RpcEndpointRef,
+    val workerUrl: String,
+    val securityManager: SecurityManager)
+  extends Logging {
+
+private[deploy] case class DriverDescription(
+    jarUrl: String,
+    mem: Int,
+    cores: Int,
+    supervise: Boolean,
+    command: Command) {
+
+  override def toString: String = s"DriverDescription (${command.mainClass})"
+}
+
+
+
+在start( )的方法中会创建一个新的进程；具体代码运行顺序：new Thread( ) --> 创建一个本地目录和下载相关的 Jar包 
+--> launchDriver( ) --> 判断并收集它的状态 --> 再发送给 Worker 一个状态变化的消息。
+补充说明：Executor 和 ExecutorBackend 是一对一的关系，一个ExecutorBackend进程里面有一个Executor，
+而在Executor内部它是通过线程池并发处理的方式来处理我们 Spark 提交过来的 Task。Executor 启动后需要向 Driver 注册，
+具体是注册给 SparkDeploySchedulerBackend实例。
+
+private[worker] def start() = {
+    new Thread("DriverRunner for " + driverId) {
+      override def run() {
+        var shutdownHook: AnyRef = null
+        try {
+          shutdownHook = ShutdownHookManager.addShutdownHook { () =>
+            logInfo(s"Worker shutting down, killing driver $driverId")
+            kill()
+          }
+
+          // prepare driver jars and run driver
+          val exitCode = prepareAndRunDriver()
+
+          // set final state depending on if forcibly killed and process exit code
+          finalState = if (exitCode == 0) {
+            Some(DriverState.FINISHED)
+          } else if (killed) {
+            Some(DriverState.KILLED)
+          } else {
+            Some(DriverState.FAILED)
+          }
+        } catch {
+          case e: Exception =>
+            kill()
+            finalState = Some(DriverState.ERROR)
+            finalException = Some(e)
+        } finally {
+          if (shutdownHook != null) {
+            ShutdownHookManager.removeShutdownHook(shutdownHook)
+          }
+        }
+
+        // notify worker of final driver state, possible exception
+        worker.send(DriverStateChanged(driverId, finalState.get, finalException))
+      }
+    }.start()
+  }
+
+
+private[worker] def prepareAndRunDriver(): Int = {
+    val driverDir = createWorkingDirectory()
+    val localJarFilename = downloadUserJar(driverDir)
+
+    def substituteVariables(argument: String): String = argument match {
+      case "{{WORKER_URL}}" => workerUrl
+      case "{{USER_JAR}}" => localJarFilename
+      case other => other
+    }
+
+    // TODO: If we add ability to submit multiple jars they should also be added here
+    val builder = CommandUtils.buildProcessBuilder(driverDesc.command, securityManager,
+      driverDesc.mem, sparkHome.getAbsolutePath, substituteVariables)
+
+    runDriver(builder, driverDir, driverDesc.supervise)
+  }
+
+  在本地创建了的一个工作目录
+
+private def createWorkingDirectory(): File = {
+val driverDir = new File(workDir, driverId)
+if (!driverDir.exists() && !driverDir.mkdirs()) {
+  throw new IOException("Failed to create directory " + driverDir)
+}
+driverDir
+}
+
+从 HDFS 上获取相关的依赖包 Jar 到本地，因为你提交程序的时候是提交给Spark集群的。
+private def downloadUserJar(driverDir: File): String = {
+val jarFileName = new URI(driverDesc.jarUrl).getPath.split("/").last
+val localJarFile = new File(driverDir, jarFileName)
+if (!localJarFile.exists()) { // May already exist if running multiple workers on one node
+  logInfo(s"Copying user jar ${driverDesc.jarUrl} to $localJarFile")
+  Utils.fetchFile(
+    driverDesc.jarUrl,
+    driverDir,
+    conf,
+    securityManager,
+    SparkHadoopUtil.get.newConfiguration(conf),
+    System.currentTimeMillis(),
+    useCache = false)
+  if (!localJarFile.exists()) { // Verify copy succeeded
+    throw new IOException(
+      s"Can not find expected jar $jarFileName which should have been loaded in $driverDir")
+  }
+}
+localJarFile.getAbsolutePath
+}
+
+Worker 是实现RPC通信的，否则别人无法给你发消息的，可以初步看一下类的说明，
+你会发现它是继承著 ThreadRpcEndPoint (在这里先不深入探讨 RpcEndPoint 的机制，如果想了解可以看点击这篇博客) 
+
+通过Command PrcoessBuilder
+
+  /**
+   * Build a ProcessBuilder based on the given parameters.
+   * The `env` argument is exposed for testing.
+   */
+  def buildProcessBuilder(
+      command: Command,
+      securityMgr: SecurityManager,
+      memory: Int,
+      sparkHome: String,
+      substituteArguments: String => String,
+      classPaths: Seq[String] = Seq[String](),
+      env: Map[String, String] = sys.env): ProcessBuilder = {
+    val localCommand = buildLocalCommand(
+      command, securityMgr, substituteArguments, classPaths, env)
+    val commandSeq = buildCommandSeq(localCommand, memory, sparkHome)
+    val builder = new ProcessBuilder(commandSeq: _*)
+    val environment = builder.environment()
+    for ((key, value) <- localCommand.environment) {
+      environment.put(key, value)
+    }
+    builder
+  }
+
+
+private def buildCommandSeq(command: Command, memory: Int, sparkHome: String): Seq[String] = {
+    // SPARK-698: do not call the run.cmd script, as process.destroy()
+    // fails to kill a process tree on Windows
+    val cmd = new WorkerCommandBuilder(sparkHome, memory, command).buildCommand()
+    cmd.asScala ++ Seq(command.mainClass) ++ command.arguments
+  }
+
+
+/**
+ * This class is used by CommandUtils. It uses some package-private APIs in SparkLauncher, and since
+ * Java doesn't have a feature similar to `private[spark]`, and we don't want that class to be
+ * public, needs to live in the same package as the rest of the library.
+ */
+private[spark] class WorkerCommandBuilder(sparkHome: String, memoryMb: Int, command: Command)
+    extends AbstractCommandBuilder {
+
+  childEnv.putAll(command.environment.asJava)
+  childEnv.put(CommandBuilderUtils.ENV_SPARK_HOME, sparkHome)
+
+  override def buildCommand(env: JMap[String, String]): JList[String] = {
+    val cmd = buildJavaCommand(command.classPathEntries.mkString(File.pathSeparator))
+    cmd.add(s"-Xmx${memoryMb}M")
+    command.javaOpts.foreach(cmd.add)
+    CommandBuilderUtils.addPermGenSizeOpt(cmd)
+    addOptionString(cmd, getenv("SPARK_JAVA_OPTS"))
+    cmd
+  }
+
+  def buildCommand(): JList[String] = buildCommand(new JHashMap[String, String]())
+
+}
+
+
+
+启动Driver e.g. launchDriver
+
+
+
+

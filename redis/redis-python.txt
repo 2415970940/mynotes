@@ -1,0 +1,100 @@
+pip install redis
+
+	import redis
+
+	pool = redis.ConnectionPool(host='127.0.0.1',port=6379)
+	client= redis.StrictRedis(connection_pool=pool)
+	key = 'hello'
+	setResult = client.set(key,"redis-python")
+	print(setResult)
+
+	value = client.get(key)
+	print(value)
+	
+1.慢查询
+如：keys *   hgetall
+两个配置 
+	slowlog-max-len
+		1.先进先出队列
+		2.固定长度
+		3.保存在内存中
+	slowlog-log-slower-than
+		慢查询阀值（单位：微妙）
+		slowlog-log-slower-than = 0 所有命令进入慢查询
+配置命令：
+config set slowlog-max-len 1000
+config set slowlog-log-slower-than 1000
+
+慢查询命令：
+slowlog get [n]
+slowlog len
+slowlog reset
+
+2.pipline 流水线
+与m命令的比较  
+	m命令原子的     	一次性执行
+	pipline是非原子的	分段执行
+	
+3.发布订阅
+pulish channel message
+subscribe channel 
+unsubscribe channel 
+psubscribe [pattern]模式订阅
+pubsub channels 列出至少一个订阅者的频道
+pubsub numsub [channels] 列出给定频道的订阅数量
+
+4.bitmap
+setbit key offset value   给位图指定索引设置值
+getbit key offset         获取位图指定索引的值
+bitcount key [start end]	获取位图指定范围位值为1的个数,start,end单位字节
+bitop op destkey key[key...]   op =[and or not xor]  结果保存在destkey
+bitpos key targetBit[start][end]获取位图指定范围字节的第一个偏移量对应值
+
+5.HyperLogLog 极小空间完成独立数量统计，本质string
+无重复
+三个命令：
+pfadd key element[element..] 向hyperloglog添加元素
+pfcount key[key...]		hyperloglog总数
+pfmerge destkey sourcekey[sourcekey...]   合并多个hyperloglog
+
+6.GEO  本质zset
+geoadd key longitude latitude member  添加
+geoadd cities:location 116.28 39.55 beijing
+
+geopos key member		获取经纬度
+geopos cities:location beijing
+
+geodist key member1 member2 [unit]  两地距离
+#unit:m km mi ft
+
+georadius
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

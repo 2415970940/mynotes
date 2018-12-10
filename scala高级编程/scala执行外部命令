@@ -1,0 +1,17 @@
+首先scala 是运行在java虚拟机中的，也就是JVM 虚拟机进程中的
+
+那么scala是否可以执行在scala进程之外的命令？
+
+答案是肯定的。实际上Scala 也是支持这样的操作的。scala运行在一个独立的进程，但是可以执行外部的一些命令
+
+import sys.process._
+//这里的命令是linux系统的命令
+"ls -a .."!
+
+
+"javac HelloWorld.java"!
+
+
+
+"java Helloworld"!
+

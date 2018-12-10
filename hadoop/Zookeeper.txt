@@ -1,0 +1,22 @@
+Zookeeper
+
+1、conf文件
+tickTime=2000  心跳2s
+initLimit=10    10个心跳帧 20s
+syncLimit=5		启动之后10s
+clientPort=2181
+
+2.选举机制
+
+3.启动服务器
+zkServer.sh start
+
+客户端
+zkCli.sh
+	ls /
+	create -s
+	create -e
+	delete path
+	rmr path
+	
+

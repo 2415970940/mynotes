@@ -1,0 +1,70 @@
+1.安装flume1.7.0
+flume-env.sh 涉及修改项：
+export JAVA_HOME=/opt/modules/jdk1.8.0_121
+
+2.安装 telnet 工具
+3.创建 Flume Agent 配置文件 job_flume_netcat.conf
+
+$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/job_flume_netcat.conf -Dflume.root.logger==INFO,console
+
+4.$ netstat -tunlp | grep 44444 检查端口
+
+5.$ telnet localhost 44444
+———————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+案例1 实时监控 hive 日志，并上传到 HDFS 中
+
+1.拷贝 Hadoop 相关 jar 到 Flume 的 lib 目录下
+在hadoop目录下查找jar包   find ./ -name "hadoop-auth*"
+cp -a src dest
+
+cp -a ./share/hadoop/common/lib/hadoop-auth-2.7.2.jar /opt/module/flume-1.7.0/lib/
+cp -a ./share/hadoop/common/lib/commons-configuration-1.6.jar /opt/module/flume-1.7.0/lib/ 
+cp -a ./share/hadoop/hdfs/hadoop-hdfs-2.7.2.jar /opt/module/flume-1.7.0/lib/
+cp -a ./share/hadoop/common/hadoop-common-2.7.2.jar /opt/module/flume-1.7.0/lib/
+
+2.创建 Flume Agent 配置文件 job_flume_hive.conf
+
+3.
+$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/job_flume_hive.conf
+
+-------------------------------------------------------------------------------------------------------------------
+
+案例2 实时读取目录文件到 HDFS
+-------------------------------------------------------------------------------------------------------------------
+案例3 Flume 与 Flume 之间数据传递： 单 Flume 多Channel、多Sink，
+
+目标： 使用 flume-1 监控文件变动， flume-1 将变动内容传递给 flume-2， flume-2 负责存储到HDFS。
+	   同时 flume-1 将变动内容传递给 flume-3， flume-3 负责输出到。local filesystem。
+1.
+创建 flume-1.conf，用于监控 hive.log 文件的变动，同时产生两个 channel 和两个 sink 分别输送给 flume-2 和 flume-3：
+
+-------------------------------------------------------------------------------------------------------------------
+案例4： Flume 与 Flume 之间数据传递， 多 Flume 汇总数据到单 Flume
+目标： flume-1 监控文件 hive.log， flume-2 监控某一个端口的数据流， flume-1 与 flume-2 将数据发送给 flume-3， flume3 将最终数据写入到 HDFS。
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+
+	  r - c - s
+1. port - memory - logger
+2. exec - memory - hdfs
+3. spooldir- memory - hdfs
+4. exec - memory - avro(port1,port2)     avro(port1) - memory - hdfs    avro(port1) - memory - file_roll
+5. exec - memory - avro(port) 	 port - memory - avro(port)    avro(port)-memory-hdfs
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
